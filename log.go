@@ -16,7 +16,24 @@ limitations under the License.
 
 package log
 
-import "log"
+import (
+	"log"
+	"os"
+)
+
+var (
+	// Exit is invoked when a log function requires the program to forcibly terminate.
+	// This behavior is encapsulated in a variable so that users of this package can
+	// customize the exit behavior. For example, it is tedious to unit test a program
+	// that may invoke Fatalf if that call results in a call to `os.Exit`. Test authors
+	// may find it convenient to override the value of this func simplify such tests.
+	// Exit expects to be invoked by calls to Fatalf.
+	Exit = func(code int) { os.Exit(code) }
+
+	// Panic invokes `panic(msg)` by default. It's declared as a variable here to allow
+	// for customization. Expected to be invoked by calls to Panicf.
+	Panic = func(msg string, _ ...interface{}) { panic(msg) }
+)
 
 type Logger interface {
 	Logf(string, ...interface{})
@@ -35,8 +52,8 @@ type Interface interface {
 	Infof(string, ...interface{})
 	Warnf(string, ...interface{})
 	Errorf(string, ...interface{})
-	Fatalf(string, ...interface{})
-	Panicf(string, ...interface{})
+	Fatalf(string, ...interface{}) // Fatalf logs and then invokes Exit(1)
+	Panicf(string, ...interface{}) // Panicf logs and then invokes Panic(msg,args...)
 }
 
 type funcs struct {
@@ -52,10 +69,13 @@ func (f *funcs) Debugf(msg string, args ...interface{}) { f.debugf.Logf(msg, arg
 func (f *funcs) Infof(msg string, args ...interface{})  { f.infof.Logf(msg, args...) }
 func (f *funcs) Warnf(msg string, args ...interface{})  { f.warnf.Logf(msg, args...) }
 func (f *funcs) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, args...) }
-func (f *funcs) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
+func (f *funcs) Fatalf(msg string, args ...interface{}) {
+	defer Exit(1)
+	f.fatalf.Logf(msg, args...)
+}
 func (f *funcs) Panicf(msg string, args ...interface{}) {
+	defer Panic(msg, args...)
 	f.panicf.Logf(msg, args...)
-	panic(msg)
 }
 
 func Levels(debugf, infof, warnf, errorf, fatalf, panicf Logger) Interface {
