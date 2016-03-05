@@ -14,15 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package log
+package log_test
 
 import (
+	"fmt"
+
+	"github.com/jdef/log"
 	"github.com/jdef/log/config"
 )
 
-func Debugf(msg string, args ...interface{}) { config.Default.Debugf(msg, args...) }
-func Infof(msg string, args ...interface{})  { config.Default.Infof(msg, args...) }
-func Warnf(msg string, args ...interface{})  { config.Default.Warnf(msg, args...) }
-func Errorf(msg string, args ...interface{}) { config.Default.Errorf(msg, args...) }
-func Fatalf(msg string, args ...interface{}) { config.Default.Fatalf(msg, args...) }
-func Panicf(msg string, args ...interface{}) { config.Default.Panicf(msg, args...) }
+func Example_withCustomLogger() {
+	var (
+		logs   = []string{}
+		logger = config.LogFunc(func(m string, a ...interface{}) {
+			logs = append(logs, fmt.Sprintf(m, a...))
+		})
+	)
+
+	// swap out the default log sink
+	config.Default, _ = config.DefaultConfig.With(config.Sink(logger))
+	log.Debugf("I can count 1 2 %d", 3)
+	log.Infof("and more 4 5 %d", 6)
+
+	// print what we logged
+	fmt.Printf("%d\n", len(logs))
+	fmt.Print(logs[0])
+
+	// Output:
+	// 1
+	// and more 4 5 6
+}
