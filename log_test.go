@@ -21,18 +21,43 @@ import (
 
 	"github.com/jdef/log"
 	"github.com/jdef/log/config"
+	"github.com/jdef/log/io"
+	"github.com/jdef/log/logger"
 )
 
 func Example_withCustomLogger() {
 	var (
-		logs   = []string{}
-		logger = config.LogFunc(func(m string, a ...interface{}) {
+		logs    = []string{}
+		flogger = logger.LoggerFunc(func(m string, a ...interface{}) {
 			logs = append(logs, fmt.Sprintf(m, a...))
 		})
 	)
 
-	// swap out the default log sink
-	config.Default, _ = config.DefaultConfig.With(config.Sink(logger))
+	// swap out the default logger
+	config.Default, _ = config.DefaultConfig.With(config.Logger(flogger))
+	log.Debugf("I can count 1 2 %d", 3)
+	log.Infof("and more 4 5 %d", 6)
+
+	// print what we logged
+	fmt.Printf("%d\n", len(logs))
+	fmt.Print(logs[0])
+
+	// Output:
+	// 1
+	// and more 4 5 6
+}
+
+func Example_withCustomStream() {
+	var (
+		logs   = []string{}
+		stream = io.StreamFunc(func(b []byte) (int, error) {
+			logs = append(logs, string(b))
+			return len(b), nil
+		})
+	)
+
+	// swap out the default logger
+	config.Default, _ = config.DefaultConfig.With(config.Stream(stream))
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Infof("and more 4 5 %d", 6)
 

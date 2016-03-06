@@ -17,62 +17,25 @@ limitations under the License.
 package config
 
 import (
-	"log"
+	"bufio"
+	"fmt"
+	stdio "io"
 	"os"
+
+	"github.com/jdef/log/io"
+	"github.com/jdef/log/logger"
 )
 
-type Logger interface {
-	Logf(string, ...interface{})
-}
-
-type LogFunc func(string, ...interface{})
-
-func (f LogFunc) Logf(msg string, args ...interface{}) {
-	f(msg, args...)
-}
-
-func DevNull() Logger { return Logger(LogFunc(func(_ string, _ ...interface{}) {})) }
+// ExitCode is passed to exit functions that are invoked upon calls to Fatalf
+var ExitCode = 1
 
 type Interface interface {
 	Debugf(string, ...interface{})
 	Infof(string, ...interface{})
 	Warnf(string, ...interface{})
 	Errorf(string, ...interface{})
-	Fatalf(string, ...interface{}) // Fatalf logs and then invokes Exit(1)
-	Panicf(string, ...interface{}) // Panicf logs and then invokes Panic(msg,args...)
-}
-
-type funcs struct {
-	debugf Logger
-	infof  Logger
-	warnf  Logger
-	errorf Logger
-	fatalf Logger
-	panicf Logger
-}
-
-func (f *funcs) Debugf(msg string, args ...interface{}) { f.debugf.Logf(msg, args...) }
-func (f *funcs) Infof(msg string, args ...interface{})  { f.infof.Logf(msg, args...) }
-func (f *funcs) Warnf(msg string, args ...interface{})  { f.warnf.Logf(msg, args...) }
-func (f *funcs) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, args...) }
-func (f *funcs) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
-func (f *funcs) Panicf(msg string, args ...interface{}) { f.panicf.Logf(msg, args...) }
-
-func Levels(debugf, infof, warnf, errorf, fatalf, panicf Logger) Interface {
-	check := func(x Logger) Logger {
-		if x == nil {
-			return DevNull()
-		}
-		return x
-	}
-	return &funcs{check(debugf), check(infof), check(warnf), check(errorf), check(fatalf), check(panicf)}
-}
-
-func If(i bool, a, b Logger) Logger {
-	if i {
-		return a
-	}
-	return b
+	Fatalf(string, ...interface{}) // Fatalf logs and then invokes an exit func
+	Panicf(string, ...interface{}) // Panicf logs and then invokes a panic func
 }
 
 type Level int
@@ -86,99 +49,176 @@ const (
 	LevelPanic
 )
 
-func (min Level) LogAt(at Level, logger Logger) Logger {
-	return If(at >= min, logger, DevNull())
-}
-
-// TODO(jdef) figure out a way to incorporate this seamlessly
-func (x Level) Annotated(logger Logger) Logger {
-	codes := map[Level]string{
-		LevelDebug: "D",
-		LevelInfo:  "I",
-		LevelWarn:  "W",
-		LevelError: "E",
-		LevelFatal: "F",
-		LevelPanic: "P",
+func (min Level) Filter(at Level) io.Decorator {
+	null := func(_ io.Context, _ stdio.Writer, _ string, _ ...interface{}) (_ error) { return }
+	return func(op io.WriteOp) io.WriteOp {
+		if at >= min {
+			return op
+		}
+		return io.WriteOp(null)
 	}
-	return LogFunc(func(m string, a ...interface{}) {
-		logger.Logf(codes[x]+m, a...)
-	})
 }
 
-func Threshold(min Level, logger Logger, fexit func(int), fpanic func(string)) Interface {
-	return Levels(
-		min.LogAt(LevelDebug, logger),
-		min.LogAt(LevelInfo, logger),
-		min.LogAt(LevelWarn, logger),
-		min.LogAt(LevelError, logger),
-		LogFunc(func(m string, a ...interface{}) {
-			defer fexit(1)
-			min.LogAt(LevelFatal, logger).Logf(m, a...)
-		}),
-		LogFunc(func(m string, a ...interface{}) {
-			defer fpanic(m)
-			min.LogAt(LevelPanic, logger).Logf(m, a...)
-		}),
+func (min Level) Logger(logs logger.Logger, at Level) logger.Logger {
+	if at >= min {
+		return logs
+	}
+	return logger.Null()
+}
+
+var levelCodes = map[Level][]byte{
+	LevelDebug: []byte("D"),
+	LevelInfo:  []byte("I"),
+	LevelWarn:  []byte("W"),
+	LevelError: []byte("E"),
+	LevelFatal: []byte("F"),
+	LevelPanic: []byte("P"),
+}
+
+// TODO(jdef) test this
+func (x Level) Annotated() io.Decorator {
+	code, ok := levelCodes[x]
+	if !ok {
+		// fail fast
+		panic(fmt.Sprintf("unexpected level: %q", x))
+	}
+	return func(op io.WriteOp) io.WriteOp {
+		return func(c io.Context, w stdio.Writer, m string, a ...interface{}) (err error) {
+			if bw, ok := w.(*bufio.Writer); ok {
+				err = bw.WriteByte(code[0])
+			} else {
+				_, err = w.Write(code)
+			}
+			if err == nil {
+				err = op(c, w, m, a...)
+			}
+			return
+		}
+	}
+}
+
+type loggers struct {
+	debugf logger.Logger
+	infof  logger.Logger
+	warnf  logger.Logger
+	errorf logger.Logger
+	fatalf logger.Logger
+	panicf logger.Logger
+}
+
+func (f *loggers) Debugf(msg string, args ...interface{}) { f.debugf.Logf(msg, args...) }
+func (f *loggers) Infof(msg string, args ...interface{})  { f.infof.Logf(msg, args...) }
+func (f *loggers) Warnf(msg string, args ...interface{})  { f.warnf.Logf(msg, args...) }
+func (f *loggers) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, args...) }
+func (f *loggers) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
+func (f *loggers) Panicf(msg string, args ...interface{}) { f.panicf.Logf(msg, args...) }
+
+func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Interface {
+	check := func(x logger.Logger) logger.Logger {
+		if x == nil {
+			return logger.Null()
+		}
+		return x
+	}
+	return &loggers{
+		check(debugf),
+		check(infof),
+		check(warnf),
+		check(errorf),
+		check(fatalf),
+		check(panicf),
+	}
+}
+
+func safeExit(fexit func(int)) func(int) {
+	if fexit == nil {
+		fexit = os.Exit
+	}
+	return fexit
+}
+
+func safePanic(fpanic func(string)) func(string) {
+	if fpanic == nil {
+		fpanic = func(m string) { panic(m) }
+	}
+	return fpanic
+}
+
+func LeveledStreamer(ctx io.Context, min Level, s io.Stream, fexit func(int), fpanic func(string)) Interface {
+	op := io.Operator(ctx)
+	if s == nil {
+		s = io.SystemStream()
+	}
+	exitDecorator := func() io.Decorator {
+		return func(op io.WriteOp) io.WriteOp {
+			return func(c io.Context, w stdio.Writer, m string, a ...interface{}) (err error) {
+				defer safeExit(fexit)(ExitCode)
+				return op(c, w, m, a...)
+			}
+		}
+	}
+	panicDecorator := func() io.Decorator {
+		return func(op io.WriteOp) io.WriteOp {
+			return func(c io.Context, w stdio.Writer, m string, a ...interface{}) (err error) {
+				defer safePanic(fpanic)(m)
+				return op(c, w, m, a...)
+			}
+		}
+	}
+
+	logAt := func(level Level, d ...io.Decorator) logger.Logger {
+		d = append([]io.Decorator{min.Filter(level)}, d...)
+		return logger.StreamLogger(ctx, s, logger.IgnoreErrors(), op, d...)
+	}
+	return WithLevelLoggers(
+		logAt(LevelDebug),
+		logAt(LevelInfo),
+		logAt(LevelWarn),
+		logAt(LevelError),
+		logAt(LevelFatal, exitDecorator()),
+		logAt(LevelPanic, panicDecorator()),
 	)
 }
 
-type Context interface {
-	Done() <-chan struct{}
-}
-
-type CancelLogger interface {
-	Logger
-	Cancel()
-}
-
-func WithContext(ctx Context, logger CancelLogger) Logger {
-	return LogFunc(func(msg string, args ...interface{}) {
-		ch := make(chan struct{})
-		go func() {
-			defer close(ch)
-			logger.Logf(msg, args...)
-		}()
-		select {
-		case <-ctx.Done():
-			logger.Cancel()
-			<-ch // wait for logger to return
-		case <-ch:
-		}
-
+func LeveledLogger(min Level, logs logger.Logger, fexit func(int), fpanic func(string)) Interface {
+	if logs == nil {
+		logs = logger.SystemLogger()
+	}
+	exitLogger := logger.LoggerFunc(func(m string, a ...interface{}) {
+		defer safeExit(fexit)(ExitCode)
+		logs.Logf(m, a...)
 	})
+	panicLogger := logger.LoggerFunc(func(m string, a ...interface{}) {
+		defer safePanic(fpanic)(m)
+		logs.Logf(m, a...)
+	})
+	return WithLevelLoggers(
+		min.Logger(logs, LevelDebug),
+		min.Logger(logs, LevelInfo),
+		min.Logger(logs, LevelWarn),
+		min.Logger(logs, LevelError),
+		min.Logger(exitLogger, LevelFatal),
+		min.Logger(panicLogger, LevelPanic),
+	)
 }
 
-func System() Logger {
-	return LogFunc(func(m string, a ...interface{}) {
-		if len(a) > 0 {
-			if m == "" {
-				log.Print(a...)
-			} else {
-				log.Printf(m, a...)
-			}
-		} else {
-			log.Println(m)
-		}
-	})
+type StreamOrLogger struct {
+	io.Stream
+	logger.Logger
 }
 
 type Config struct {
 	Level Level
-	Sink  Logger
+	Sink  StreamOrLogger
 	Exit  func(int)
+
+	// Panic, when unset, will invoke golang's panic(string) upon calls to Panicf
 	Panic func(string)
 }
 
 var (
-	// DefaultExit is the default exit function; an exit function is invoked when a
-	// log invocation requires the program to forcibly terminate.
-	defaultExit = func(code int) { os.Exit(code) }
-
 	DefaultConfig = Config{
-		Level: LevelInfo,                   // Level defaults to LevelInfo
-		Sink:  System(),                    // Sink defaults to System()
-		Exit:  defaultExit,                 // Exit defaults to invoking os.Exit
-		Panic: func(m string) { panic(m) }, // Panic default to invoking panic(msg)
+		Level: LevelInfo, // Level defaults to LevelInfo
 	}
 
 	// Default logs everything "info" and higher ("warn", "error", ...) to DefaultSink
@@ -196,11 +236,18 @@ func NoOption() (opt Option) {
 }
 
 func (cfg Config) With(opt ...Option) (Interface, Option) {
+	return cfg.WithContext(io.NoContext(), opt...)
+}
+
+func (cfg Config) WithContext(ctx io.Context, opt ...Option) (Interface, Option) {
 	lastOpt := NoOption()
 	for _, o := range opt {
 		lastOpt = o(&cfg)
 	}
-	return Threshold(cfg.Level, cfg.Sink, cfg.Exit, cfg.Panic), lastOpt
+	if cfg.Sink.Stream != nil {
+		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Exit, cfg.Panic), lastOpt
+	}
+	return LeveledLogger(cfg.Level, cfg.Sink.Logger, cfg.Exit, cfg.Panic), lastOpt
 }
 
 func (level Level) Option() Option {
@@ -211,12 +258,20 @@ func (level Level) Option() Option {
 	}
 }
 
-func Sink(logger Logger) Option {
+func Sink(x StreamOrLogger) Option {
 	return func(c *Config) Option {
 		old := c.Sink
-		c.Sink = logger
+		c.Sink = x
 		return Sink(old)
 	}
+}
+
+func Stream(stream io.Stream) Option {
+	return Sink(StreamOrLogger{Stream: stream})
+}
+
+func Logger(logs logger.Logger) Option {
+	return Sink(StreamOrLogger{Logger: logs})
 }
 
 func Exit(f func(int)) Option {
