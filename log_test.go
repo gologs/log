@@ -87,3 +87,52 @@ func Example_withCustomStream() {
 	// Fand more 7 8 9
 	// Pand more 8 9 0
 }
+
+func Example_withCustomMarshaler() {
+	var (
+		logs   = []string{}
+		stream = &io.BufferedStream{
+			EOMFunc: func(b *bytes.Buffer, _ error) {
+				logs = append(logs, b.String())
+			},
+		}
+		// key=value marshaler
+		marshaler = func(ctx io.Context, w io.Stream, m string, a ...interface{}) (err error) {
+			fmt.Fprint(w, m)
+			w.Write([]byte("{"))
+			if len(a) > 0 {
+				for i := 0; i+1 < len(a); i++ {
+					if i > 0 {
+						w.Write([]byte(","))
+					}
+					fmt.Fprint(w, a[i])
+					w.Write([]byte("="))
+					i++
+					fmt.Fprint(w, a[i])
+				}
+			}
+			w.Write([]byte("}"))
+			w.EOM(nil)
+			return nil
+		}
+	)
+
+	// swap out the default logger
+	config.Default, _ = config.DefaultConfig.With(
+		config.Panic(config.NoPanic()),
+		config.Exit(config.NoExit()),
+		config.Stream(stream),
+		config.Marshaler(marshaler),
+	)
+	log.Infof("some log event", "majorVersion", 1, "module", "storage", "owner", "alice")
+
+	// print what we logged
+	fmt.Printf("%d\n", len(logs))
+	for i := range logs {
+		fmt.Println(logs[i])
+	}
+
+	// Output:
+	// 1
+	// Isome log event{majorVersion=1,module=storage,owner=alice}
+}

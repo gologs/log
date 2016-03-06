@@ -91,6 +91,7 @@ func (c nullContext) Done() <-chan struct{} { return nil }
 
 func NoContext() Context { return nullContext(nil) }
 
+/*
 func IfElse(i bool, a, b Stream) Stream {
 	if i {
 		return a
@@ -110,17 +111,17 @@ func (bt *byteTracker) Write(buf []byte) (int, error) {
 	}
 	return n, err
 }
+*/
 
-// Operator returns a StreamOp that marshals log writes to streams.
-// TODO(jdef) move to logger?
-func Operator(ctx Context, d ...Decorator) StreamOp {
+// Printf returns a StreamOp that uses fmt Print and Printf to format
+// log writes to streams. An EOM signal is sent after every log message.
+func Printf(ctx Context, d ...Decorator) StreamOp {
 	return Decorators(d).Decorate(StreamOp(
 		func(ctx Context, w Stream, m string, a ...interface{}) (err error) {
-			bt := byteTracker{w, -1}
 			if len(a) > 0 && m != "" {
-				_, err = fmt.Fprintf(&bt, m, a...)
+				_, err = fmt.Fprintf(w, m, a...)
 			} else {
-				_, err = fmt.Fprint(&bt, a...)
+				_, err = fmt.Fprint(w, a...)
 			}
 			w.EOM(err)
 			return

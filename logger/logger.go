@@ -17,7 +17,6 @@ limitations under the License.
 package logger
 
 import (
-	stdio "io"
 	"log"
 
 	"github.com/jdef/log/io"
@@ -54,6 +53,7 @@ func StreamLogger(ctx io.Context, s io.Stream, errCh chan<- error, op io.StreamO
 	})
 }
 
+/*
 type ignoreEOM struct {
 	stdio.Writer
 }
@@ -66,7 +66,8 @@ func (i *ignoreEOM) EOM(_ error) {}
 func WriterLogger(w stdio.Writer) Logger {
 	var (
 		ctx = io.NoContext() // TODO(jdef)
-		op  = io.Operator(ctx)
+		op  = io.Printf(ctx)
+		// TODO(jdef) should better handle EOM's by checking for LF
 	)
 	s := &ignoreEOM{w}
 	return LoggerFunc(func(m string, a ...interface{}) {
@@ -74,6 +75,7 @@ func WriterLogger(w stdio.Writer) Logger {
 		op(ctx, s, m, a...)
 	})
 }
+*/
 
 // SystemLogger generates a Logger that logs to the golang Print family
 // of functions.

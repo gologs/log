@@ -144,9 +144,12 @@ func LeveledStreamer(
 	s io.Stream,
 	fexit func(int),
 	fpanic func(string),
+	marshaler io.StreamOp,
 	d ...io.Decorator,
 ) Interface {
-	op := io.Operator(ctx)
+	if marshaler == nil {
+		marshaler = io.Printf(ctx)
+	}
 	if s == nil {
 		s = io.SystemStream()
 	}
@@ -174,7 +177,7 @@ func LeveledStreamer(
 			annotator = level.Annotated()
 		}
 		d = append(d, annotator, min.Filter(level))
-		return logger.StreamLogger(ctx, s, logger.IgnoreErrors(), op, d...)
+		return logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
 	}
 	return WithLevelLoggers(
 		logAt(LevelDebug, d...),
@@ -225,6 +228,10 @@ type Config struct {
 
 	// Decorators are applied to the underlying Sink.Stream (never to Sink.Logger)
 	Decorators io.Decorators
+
+	// Marshals a log event to an underlying Sink.Stream, defaults to io.Printf.
+	// All marshalers should invoke Stream.EOM after processing each log event.
+	Marshaler io.StreamOp
 }
 
 // NoPanic generates a noop panic func
@@ -267,9 +274,22 @@ func (cfg Config) WithContext(ctx io.Context, opt ...Option) (Interface, Option)
 		}
 	}
 	if cfg.Sink.Stream != nil {
-		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Exit, cfg.Panic), lastOpt
+		return LeveledStreamer(
+			ctx,
+			cfg.Level,
+			cfg.Sink.Stream,
+			cfg.Exit,
+			cfg.Panic,
+			cfg.Marshaler,
+			cfg.Decorators...,
+		), lastOpt
 	}
-	return LeveledLogger(cfg.Level, cfg.Sink.Logger, cfg.Exit, cfg.Panic), lastOpt
+	return LeveledLogger(
+		cfg.Level,
+		cfg.Sink.Logger,
+		cfg.Exit,
+		cfg.Panic,
+	), lastOpt
 }
 
 func (level Level) Option() Option {
@@ -309,6 +329,14 @@ func Panic(f func(msg string)) Option {
 		old := c.Panic
 		c.Panic = f
 		return Panic(old)
+	}
+}
+
+func Marshaler(m io.StreamOp) Option {
+	return func(c *Config) Option {
+		old := c.Marshaler
+		c.Marshaler = m
+		return Marshaler(old)
 	}
 }
 
