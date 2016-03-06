@@ -49,16 +49,7 @@ const (
 	LevelPanic
 )
 
-func (min Level) Filter(at Level) io.Decorator {
-	return func(op io.StreamOp) io.StreamOp {
-		if at >= min {
-			return op
-		}
-		return io.NullOp()
-	}
-}
-
-func (min Level) Logger(logs logger.Logger, at Level) logger.Logger {
+func (min Level) Logger(at Level, logs logger.Logger) logger.Logger {
 	if at >= min {
 		return logs
 	}
@@ -89,6 +80,15 @@ func (x Level) Annotated() io.Decorator {
 			return
 		}
 	}
+}
+
+type LevelTransform map[Level]func(logger.Logger) logger.Logger
+
+func (t LevelTransform) Apply(x Level, logs logger.Logger) (Level, logger.Logger) {
+	if f, ok := t[x]; ok {
+		return x, f(logs)
+	}
+	return x, logs
 }
 
 type loggers struct {
@@ -124,6 +124,58 @@ func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger
 	}
 }
 
+func LeveledStreamer(
+	ctx io.Context,
+	min Level,
+	s io.Stream,
+	marshaler io.StreamOp,
+	t LevelTransform,
+	decorators ...io.Decorator,
+) Interface {
+	if marshaler == nil {
+		marshaler = io.Printf(ctx)
+	}
+	if s == nil {
+		s = io.SystemStream()
+	}
+
+	applyAnnotations := false
+	if len(decorators) == 0 {
+		applyAnnotations = true
+	}
+
+	logAt := func(level Level, d ...io.Decorator) (Level, logger.Logger) {
+		var annotator io.Decorator
+		if applyAnnotations {
+			annotator = level.Annotated()
+		}
+		d = append(d, annotator)
+		return level, logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
+	}
+	return WithLevelLoggers(
+		min.Logger(t.Apply(logAt(LevelDebug, decorators...))),
+		min.Logger(t.Apply(logAt(LevelInfo, decorators...))),
+		min.Logger(t.Apply(logAt(LevelWarn, decorators...))),
+		min.Logger(t.Apply(logAt(LevelError, decorators...))),
+		min.Logger(t.Apply(logAt(LevelFatal, decorators...))),
+		min.Logger(t.Apply(logAt(LevelPanic, decorators...))),
+	)
+}
+
+func LeveledLogger(min Level, logs logger.Logger, t LevelTransform) Interface {
+	if logs == nil {
+		logs = logger.SystemLogger()
+	}
+	return WithLevelLoggers(
+		min.Logger(t.Apply(LevelDebug, logs)),
+		min.Logger(t.Apply(LevelInfo, logs)),
+		min.Logger(t.Apply(LevelWarn, logs)),
+		min.Logger(t.Apply(LevelError, logs)),
+		min.Logger(t.Apply(LevelFatal, logs)),
+		min.Logger(t.Apply(LevelPanic, logs)),
+	)
+}
+
 func safeExit(fexit func(int)) func(int) {
 	if fexit == nil {
 		fexit = os.Exit
@@ -138,77 +190,18 @@ func safePanic(fpanic func(string)) func(string) {
 	return fpanic
 }
 
-func LeveledStreamer(
-	ctx io.Context,
-	min Level,
-	s io.Stream,
-	fexit func(int),
-	fpanic func(string),
-	marshaler io.StreamOp,
-	d ...io.Decorator,
-) Interface {
-	if marshaler == nil {
-		marshaler = io.Printf(ctx)
-	}
-	if s == nil {
-		s = io.SystemStream()
-	}
-	exitDecorator := io.Decorator(func(op io.StreamOp) io.StreamOp {
-		return func(c io.Context, w io.Stream, m string, a ...interface{}) (err error) {
-			defer safeExit(fexit)(ExitCode)
-			return op(c, w, m, a...)
-		}
-	})
-	panicDecorator := io.Decorator(func(op io.StreamOp) io.StreamOp {
-		return func(c io.Context, w io.Stream, m string, a ...interface{}) (err error) {
-			defer safePanic(fpanic)(m)
-			return op(c, w, m, a...)
-		}
-	})
-
-	applyAnnotations := false
-	if len(d) == 0 {
-		applyAnnotations = true
-	}
-
-	logAt := func(level Level, d ...io.Decorator) logger.Logger {
-		var annotator io.Decorator
-		if applyAnnotations {
-			annotator = level.Annotated()
-		}
-		d = append(d, annotator, min.Filter(level))
-		return logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
-	}
-	return WithLevelLoggers(
-		logAt(LevelDebug, d...),
-		logAt(LevelInfo, d...),
-		logAt(LevelWarn, d...),
-		logAt(LevelError, d...),
-		logAt(LevelFatal, append(d, exitDecorator)...),
-		logAt(LevelPanic, append(d, panicDecorator)...),
-	)
-}
-
-func LeveledLogger(min Level, logs logger.Logger, fexit func(int), fpanic func(string)) Interface {
-	if logs == nil {
-		logs = logger.SystemLogger()
-	}
-	exitLogger := logger.LoggerFunc(func(m string, a ...interface{}) {
+func exitLogger(logs logger.Logger, fexit func(int)) logger.Logger {
+	return logger.LoggerFunc(func(m string, a ...interface{}) {
 		defer safeExit(fexit)(ExitCode)
 		logs.Logf(m, a...)
 	})
-	panicLogger := logger.LoggerFunc(func(m string, a ...interface{}) {
+}
+
+func panicLogger(logs logger.Logger, fpanic func(string)) logger.Logger {
+	return logger.LoggerFunc(func(m string, a ...interface{}) {
 		defer safePanic(fpanic)(m)
 		logs.Logf(m, a...)
 	})
-	return WithLevelLoggers(
-		min.Logger(logs, LevelDebug),
-		min.Logger(logs, LevelInfo),
-		min.Logger(logs, LevelWarn),
-		min.Logger(logs, LevelError),
-		min.Logger(exitLogger, LevelFatal),
-		min.Logger(panicLogger, LevelPanic),
-	)
 }
 
 type StreamOrLogger struct {
@@ -273,23 +266,14 @@ func (cfg Config) WithContext(ctx io.Context, opt ...Option) (Interface, Option)
 			lastOpt = o(&cfg)
 		}
 	}
-	if cfg.Sink.Stream != nil {
-		return LeveledStreamer(
-			ctx,
-			cfg.Level,
-			cfg.Sink.Stream,
-			cfg.Exit,
-			cfg.Panic,
-			cfg.Marshaler,
-			cfg.Decorators...,
-		), lastOpt
+	t := LevelTransform{
+		LevelFatal: func(x logger.Logger) logger.Logger { return exitLogger(x, cfg.Exit) },
+		LevelPanic: func(x logger.Logger) logger.Logger { return panicLogger(x, cfg.Panic) },
 	}
-	return LeveledLogger(
-		cfg.Level,
-		cfg.Sink.Logger,
-		cfg.Exit,
-		cfg.Panic,
-	), lastOpt
+	if cfg.Sink.Stream != nil {
+		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Marshaler, t, cfg.Decorators...), lastOpt
+	}
+	return LeveledLogger(cfg.Level, cfg.Sink.Logger, t), lastOpt
 }
 
 func (level Level) Option() Option {
