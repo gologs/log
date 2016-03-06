@@ -17,6 +17,7 @@ limitations under the License.
 package log_test
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/jdef/log"
@@ -40,7 +41,9 @@ func Example_withCustomLogger() {
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
-	fmt.Print(logs[0])
+	for i := range logs {
+		fmt.Println(logs[i])
+	}
 
 	// Output:
 	// 1
@@ -50,10 +53,11 @@ func Example_withCustomLogger() {
 func Example_withCustomStream() {
 	var (
 		logs   = []string{}
-		stream = io.StreamFunc(func(b []byte) (int, error) {
-			logs = append(logs, string(b))
-			return len(b), nil
-		})
+		stream = &io.BufferedStream{
+			EOMFunc: func(b *bytes.Buffer, _ error) {
+				logs = append(logs, b.String())
+			},
+		}
 	)
 
 	// swap out the default logger
@@ -63,9 +67,11 @@ func Example_withCustomStream() {
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
-	fmt.Print(logs[0])
+	for i := range logs {
+		fmt.Println(logs[i])
+	}
 
 	// Output:
 	// 1
-	// and more 4 5 6
+	// Iand more 4 5 6
 }

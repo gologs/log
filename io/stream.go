@@ -17,48 +17,66 @@ limitations under the License.
 package io
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 )
 
-type Stream io.Writer
-
-type StreamFunc func([]byte) (int, error)
-
-func (f StreamFunc) Write(b []byte) (int, error) { return f(b) }
-
-func Null() Stream {
-	return StreamFunc(func(b []byte) (int, error) {
-		return len(b), nil
-	})
+type Stream interface {
+	io.Writer
+	EOM(error)
 }
 
-func StreamWriter(s Stream) io.Writer {
-	return io.Writer(s)
+type nullStream struct{}
+
+func (ns *nullStream) EOM(_ error) {}
+func (ns *nullStream) Write(b []byte) (int, error) {
+	return len(b), nil
 }
 
-func WriterStream(w io.Writer) Stream {
-	return Stream(w)
+var ns = &nullStream{}
+
+func Null() Stream { return ns }
+
+type BufferedStream struct {
+	bytes.Buffer
+	EOMFunc func(*bytes.Buffer, error)
+}
+
+func (bs *BufferedStream) EOM(err error) {
+	defer bs.Reset()
+	if bs.EOMFunc != nil {
+		bs.EOMFunc(&bs.Buffer, err)
+	}
+}
+
+var stdlog = &BufferedStream{
+	EOMFunc: func(buf *bytes.Buffer, _ error) {
+		// ignore errors
+		log.Output(2, buf.String())
+	},
 }
 
 func SystemStream() Stream {
-	return StreamFunc(func(b []byte) (count int, err error) {
-		err = log.Output(2, string(b))
-		count += len(b)
-		return
-	})
+	return stdlog
 }
 
-type WriteOp func(Context, io.Writer, string, ...interface{}) error
+type StreamOp func(Context, Stream, string, ...interface{}) error
 
-type Decorator func(WriteOp) WriteOp
+var nullOp = func(_ Context, _ Stream, _ string, _ ...interface{}) (_ error) { return }
+
+func NullOp() StreamOp { return nullOp }
+
+type Decorator func(StreamOp) StreamOp
 
 type Decorators []Decorator
 
-func (dd Decorators) Decorate(op WriteOp) WriteOp {
+func (dd Decorators) Decorate(op StreamOp) StreamOp {
 	for _, d := range dd {
-		op = d(op)
+		if d != nil {
+			op = d(op)
+		}
 	}
 	return op
 }
@@ -80,48 +98,31 @@ func IfElse(i bool, a, b Stream) Stream {
 	return b
 }
 
-type lastByte int8
-
-func (b *lastByte) Write(buf []byte) (int, error) {
-	n := len(buf)
-	if n > 0 {
-		*b = lastByte(buf[n-1])
-	}
-	return n, nil
+type byteTracker struct {
+	Stream
+	lastByte int8
 }
 
-// Operator returns a WriteOp that marshals log writes to streams.
+func (bt *byteTracker) Write(buf []byte) (int, error) {
+	n, err := bt.Stream.Write(buf)
+	if n > 0 {
+		bt.lastByte = int8(buf[n-1])
+	}
+	return n, err
+}
+
+// Operator returns a StreamOp that marshals log writes to streams.
 // TODO(jdef) move to logger?
-func Operator(ctx Context, d ...Decorator) WriteOp {
-	var (
-		last         = lastByte(-1)
-		needsNewline = false
-		LF           = []byte{'\n'}
-	)
-	return Decorators(d).Decorate(WriteOp(
-		func(ctx Context, w io.Writer, m string, a ...interface{}) (err error) {
-			x := 0
-			if needsNewline {
-				x, err = w.Write(LF)
-				if x > 0 {
-					needsNewline = false
-				}
-				if err != nil {
-					return
-				}
-			}
-			n := 0
+func Operator(ctx Context, d ...Decorator) StreamOp {
+	return Decorators(d).Decorate(StreamOp(
+		func(ctx Context, w Stream, m string, a ...interface{}) (err error) {
+			bt := byteTracker{w, -1}
 			if len(a) > 0 && m != "" {
-				n, err = fmt.Fprintf(w, m, a...)
+				_, err = fmt.Fprintf(&bt, m, a...)
 			} else {
-				n, err = fmt.Fprintln(w, a...)
+				_, err = fmt.Fprint(&bt, a...)
 			}
-			if err == nil && last > -1 && last != '\n' {
-				x, err = w.Write(LF)
-				needsNewline = x <= 0
-			} else {
-				needsNewline = n > 0
-			}
+			w.EOM(err)
 			return
 		}))
 }

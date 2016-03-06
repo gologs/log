@@ -41,11 +41,10 @@ func IgnoreErrors() chan<- error {
 	return nil
 }
 
-func StreamLogger(ctx io.Context, s io.Stream, errCh chan<- error, op io.WriteOp, d ...io.Decorator) Logger {
+func StreamLogger(ctx io.Context, s io.Stream, errCh chan<- error, op io.StreamOp, d ...io.Decorator) Logger {
 	op = io.Decorators(d).Decorate(op)
-	w := io.StreamWriter(s)
 	return LoggerFunc(func(m string, a ...interface{}) {
-		if err := op(ctx, w, m, a...); err != nil && errCh != nil {
+		if err := op(ctx, s, m, a...); err != nil && errCh != nil {
 			// attempt to send back errors to the caller
 			select {
 			case errCh <- err:
@@ -55,6 +54,12 @@ func StreamLogger(ctx io.Context, s io.Stream, errCh chan<- error, op io.WriteOp
 	})
 }
 
+type ignoreEOM struct {
+	stdio.Writer
+}
+
+func (i *ignoreEOM) EOM(_ error) {}
+
 // WriterLogger generates a Logger that logs to the given Writer.
 // All errors encountered while writing log messages are silently dropped.
 // See io.Operator for details.
@@ -63,9 +68,10 @@ func WriterLogger(w stdio.Writer) Logger {
 		ctx = io.NoContext() // TODO(jdef)
 		op  = io.Operator(ctx)
 	)
+	s := &ignoreEOM{w}
 	return LoggerFunc(func(m string, a ...interface{}) {
 		// drop errors produced here
-		op(ctx, w, m, a...)
+		op(ctx, s, m, a...)
 	})
 }
 

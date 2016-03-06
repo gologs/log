@@ -17,9 +17,7 @@ limitations under the License.
 package config
 
 import (
-	"bufio"
 	"fmt"
-	stdio "io"
 	"os"
 
 	"github.com/jdef/log/io"
@@ -50,12 +48,11 @@ const (
 )
 
 func (min Level) Filter(at Level) io.Decorator {
-	null := func(_ io.Context, _ stdio.Writer, _ string, _ ...interface{}) (_ error) { return }
-	return func(op io.WriteOp) io.WriteOp {
+	return func(op io.StreamOp) io.StreamOp {
 		if at >= min {
 			return op
 		}
-		return io.WriteOp(null)
+		return io.NullOp()
 	}
 }
 
@@ -82,15 +79,10 @@ func (x Level) Annotated() io.Decorator {
 		// fail fast
 		panic(fmt.Sprintf("unexpected level: %q", x))
 	}
-	return func(op io.WriteOp) io.WriteOp {
-		return func(c io.Context, w stdio.Writer, m string, a ...interface{}) (err error) {
-			if bw, ok := w.(*bufio.Writer); ok {
-				err = bw.WriteByte(code[0])
-			} else {
-				_, err = w.Write(code)
-			}
-			if err == nil {
-				err = op(c, w, m, a...)
+	return func(op io.StreamOp) io.StreamOp {
+		return func(c io.Context, s io.Stream, m string, a ...interface{}) (err error) {
+			if _, err = s.Write(code); err == nil {
+				err = op(c, s, m, a...)
 			}
 			return
 		}
@@ -144,39 +136,51 @@ func safePanic(fpanic func(string)) func(string) {
 	return fpanic
 }
 
-func LeveledStreamer(ctx io.Context, min Level, s io.Stream, fexit func(int), fpanic func(string)) Interface {
+func LeveledStreamer(
+	ctx io.Context,
+	min Level,
+	s io.Stream,
+	fexit func(int),
+	fpanic func(string),
+	d ...io.Decorator,
+) Interface {
 	op := io.Operator(ctx)
 	if s == nil {
 		s = io.SystemStream()
 	}
-	exitDecorator := func() io.Decorator {
-		return func(op io.WriteOp) io.WriteOp {
-			return func(c io.Context, w stdio.Writer, m string, a ...interface{}) (err error) {
-				defer safeExit(fexit)(ExitCode)
-				return op(c, w, m, a...)
-			}
+	exitDecorator := io.Decorator(func(op io.StreamOp) io.StreamOp {
+		return func(c io.Context, w io.Stream, m string, a ...interface{}) (err error) {
+			defer safeExit(fexit)(ExitCode)
+			return op(c, w, m, a...)
 		}
-	}
-	panicDecorator := func() io.Decorator {
-		return func(op io.WriteOp) io.WriteOp {
-			return func(c io.Context, w stdio.Writer, m string, a ...interface{}) (err error) {
-				defer safePanic(fpanic)(m)
-				return op(c, w, m, a...)
-			}
+	})
+	panicDecorator := io.Decorator(func(op io.StreamOp) io.StreamOp {
+		return func(c io.Context, w io.Stream, m string, a ...interface{}) (err error) {
+			defer safePanic(fpanic)(m)
+			return op(c, w, m, a...)
 		}
+	})
+
+	applyAnnotations := false
+	if len(d) == 0 {
+		applyAnnotations = true
 	}
 
 	logAt := func(level Level, d ...io.Decorator) logger.Logger {
-		d = append([]io.Decorator{min.Filter(level)}, d...)
+		var annotator io.Decorator
+		if applyAnnotations {
+			annotator = level.Annotated()
+		}
+		d = append(d, annotator, min.Filter(level))
 		return logger.StreamLogger(ctx, s, logger.IgnoreErrors(), op, d...)
 	}
 	return WithLevelLoggers(
-		logAt(LevelDebug),
-		logAt(LevelInfo),
-		logAt(LevelWarn),
-		logAt(LevelError),
-		logAt(LevelFatal, exitDecorator()),
-		logAt(LevelPanic, panicDecorator()),
+		logAt(LevelDebug, d...),
+		logAt(LevelInfo, d...),
+		logAt(LevelWarn, d...),
+		logAt(LevelError, d...),
+		logAt(LevelFatal, append(d, exitDecorator)...),
+		logAt(LevelPanic, append(d, panicDecorator)...),
 	)
 }
 
@@ -210,10 +214,15 @@ type StreamOrLogger struct {
 type Config struct {
 	Level Level
 	Sink  StreamOrLogger
-	Exit  func(int)
+
+	// Exit, when unset, will invoke os.Exit upon calls to Fatalf
+	Exit func(int)
 
 	// Panic, when unset, will invoke golang's panic(string) upon calls to Panicf
 	Panic func(string)
+
+	// Decorators are applied to the underlying Sink.Stream (never to Sink.Logger)
+	Decorators io.Decorators
 }
 
 var (
@@ -221,7 +230,7 @@ var (
 		Level: LevelInfo, // Level defaults to LevelInfo
 	}
 
-	// Default logs everything "info" and higher ("warn", "error", ...) to DefaultSink
+	// Default logs everything "info" and higher ("warn", "error", ...) to SystemLogger
 	Default = func() (i Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
 )
 
@@ -242,7 +251,9 @@ func (cfg Config) With(opt ...Option) (Interface, Option) {
 func (cfg Config) WithContext(ctx io.Context, opt ...Option) (Interface, Option) {
 	lastOpt := NoOption()
 	for _, o := range opt {
-		lastOpt = o(&cfg)
+		if o != nil {
+			lastOpt = o(&cfg)
+		}
 	}
 	if cfg.Sink.Stream != nil {
 		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Exit, cfg.Panic), lastOpt
@@ -287,5 +298,24 @@ func Panic(f func(msg string)) Option {
 		old := c.Panic
 		c.Panic = f
 		return Panic(old)
+	}
+}
+
+// Decorate returns a functional Option that appends the given decorators to the Config.
+func Decorate(d ...io.Decorator) Option {
+	return func(c *Config) Option {
+		var old io.Decorators
+		if n := len(c.Decorators); n > 0 {
+			old = make(io.Decorators, n)
+			copy(old, c.Decorators)
+		}
+		c.Decorators = append(c.Decorators, d...)
+
+		// the undo option should copy back the old
+		// decorators exactly as they were
+		return Option(func(c *Config) Option {
+			c.Decorators = old
+			return Decorate(d...)
+		})
 	}
 }
