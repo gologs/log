@@ -24,6 +24,8 @@ import (
 	"github.com/jdef/log/logger"
 )
 
+// TODO(jdef) need to make this thread safe
+
 // ExitCode is passed to exit functions that are invoked upon calls to Fatalf
 var ExitCode = 1
 
