@@ -225,7 +225,16 @@ type Config struct {
 	Decorators io.Decorators
 }
 
+// NoPanic generates a noop panic func
+func NoPanic() func(string) { return func(string) {} }
+
+// NoExit generates a noop exit func
+func NoExit() func(int) { return func(int) {} }
+
 var (
+	_ = &Config{Panic: NoPanic()} // NoPanic is a panic func generator
+	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
+
 	DefaultConfig = Config{
 		Level: LevelInfo, // Level defaults to LevelInfo
 	}

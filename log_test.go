@@ -61,9 +61,17 @@ func Example_withCustomStream() {
 	)
 
 	// swap out the default logger
-	config.Default, _ = config.DefaultConfig.With(config.Stream(stream))
+	config.Default, _ = config.DefaultConfig.With(
+		config.Panic(config.NoPanic()),
+		config.Exit(config.NoExit()),
+		config.Stream(stream),
+	)
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Infof("and more 4 5 %d", 6)
+	log.Warnf("and more 5 6 %d", 7)
+	log.Errorf("and more 6 7 %d", 8)
+	log.Fatalf("and more 7 8 %d", 9)
+	log.Panicf("and more 8 9 %d", 0)
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
@@ -72,6 +80,10 @@ func Example_withCustomStream() {
 	}
 
 	// Output:
-	// 1
+	// 5
 	// Iand more 4 5 6
+	// Wand more 5 6 7
+	// Eand more 6 7 8
+	// Fand more 7 8 9
+	// Pand more 8 9 0
 }
