@@ -19,6 +19,7 @@ package levels
 import (
 	"fmt"
 
+	"github.com/jdef/log/context"
 	"github.com/jdef/log/io"
 	"github.com/jdef/log/logger"
 )
@@ -67,7 +68,7 @@ func (x Level) Annotated() io.Decorator {
 		panic(fmt.Sprintf("unexpected level: %q", x))
 	}
 	return func(op io.StreamOp) io.StreamOp {
-		return func(c io.Context, s io.Stream, m string, a ...interface{}) (err error) {
+		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
 			if _, err = s.Write(code); err == nil {
 				err = op(c, s, m, a...)
 			}

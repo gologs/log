@@ -19,6 +19,7 @@ package logger
 import (
 	"log"
 
+	"github.com/jdef/log/context"
 	"github.com/jdef/log/io"
 )
 
@@ -43,7 +44,7 @@ func IgnoreErrors() chan<- error {
 // StreamLogger generates a Logger that writes log events to the given
 // io.Stream using the given `op` marshaler. It is expected that a marshaler
 // will invoke EOM after processing each log event.
-func StreamLogger(ctx io.Context, s io.Stream, errCh chan<- error, op io.StreamOp, d ...io.Decorator) Logger {
+func StreamLogger(ctx context.Context, s io.Stream, errCh chan<- error, op io.StreamOp, d ...io.Decorator) Logger {
 	op = io.Decorators(d).Decorate(op)
 	return LoggerFunc(func(m string, a ...interface{}) {
 		if err := op(ctx, s, m, a...); err != nil && errCh != nil {
@@ -101,7 +102,7 @@ type Cancel interface {
 	Cancel()
 }
 
-func WithContext(ctx io.Context, logger Cancel) Logger {
+func WithContext(ctx context.Context, logger Cancel) Logger {
 	return LoggerFunc(func(msg string, args ...interface{}) {
 		ch := make(chan struct{})
 		go func() {

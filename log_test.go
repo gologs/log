@@ -22,6 +22,7 @@ import (
 
 	"github.com/jdef/log"
 	"github.com/jdef/log/config"
+	"github.com/jdef/log/context"
 	"github.com/jdef/log/io"
 	"github.com/jdef/log/logger"
 )
@@ -97,7 +98,7 @@ func Example_withCustomMarshaler() {
 			},
 		}
 		// key=value marshaler
-		marshaler = func(ctx io.Context, w io.Stream, m string, a ...interface{}) (err error) {
+		marshaler = func(ctx context.Context, w io.Stream, m string, a ...interface{}) (err error) {
 			fmt.Fprint(w, m)
 			w.Write([]byte("{"))
 			if len(a) > 0 {

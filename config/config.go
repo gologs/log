@@ -20,6 +20,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/jdef/log/context"
 	"github.com/jdef/log/io"
 	"github.com/jdef/log/levels"
 	"github.com/jdef/log/logger"
@@ -72,7 +73,7 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 }
 
 func LeveledStreamer(
-	ctx io.Context,
+	ctx context.Context,
 	min levels.Level,
 	s io.Stream,
 	marshaler io.StreamOp,
@@ -80,7 +81,7 @@ func LeveledStreamer(
 	decorators ...io.Decorator,
 ) levels.Interface {
 	if ctx == nil {
-		ctx = io.NoContext()
+		ctx = context.None()
 	}
 	if marshaler == nil {
 		marshaler = io.Printf(ctx)
@@ -216,10 +217,10 @@ func NoOption() (opt Option) {
 }
 
 func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
-	return cfg.WithContext(io.NoContext(), opt...)
+	return cfg.WithContext(context.None(), opt...)
 }
 
-func (cfg Config) WithContext(ctx io.Context, opt ...Option) (levels.Interface, Option) {
+func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interface, Option) {
 	lastOpt := NoOption()
 	for _, o := range opt {
 		if o != nil {
