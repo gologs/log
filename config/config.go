@@ -24,8 +24,6 @@ import (
 	"github.com/jdef/log/logger"
 )
 
-// TODO(jdef) need to make this thread safe
-
 // ExitCode is passed to exit functions that are invoked upon calls to Fatalf
 var ExitCode = 1
 
@@ -82,6 +80,10 @@ func LeveledStreamer(
 		applyAnnotations = true
 	}
 
+	// TODO(jdef) thinking about adding name/value pair support to Context so that I
+	// can embed the log level there. That way the annotator decorator isn't so special
+	// cased here.
+
 	logAt := func(level levels.Level, d ...io.Decorator) (levels.Level, logger.Logger) {
 		var annotator io.Decorator
 		if applyAnnotations {
@@ -104,6 +106,9 @@ func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) lev
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
+
+	// TODO(jdef) need to make this thread safe
+
 	return WithLevelLoggers(
 		min.Logger(t.Apply(levels.Debug, logs)),
 		min.Logger(t.Apply(levels.Info, logs)),
