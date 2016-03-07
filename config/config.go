@@ -17,10 +17,10 @@ limitations under the License.
 package config
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/jdef/log/io"
+	"github.com/jdef/log/levels"
 	"github.com/jdef/log/logger"
 )
 
@@ -28,68 +28,6 @@ import (
 
 // ExitCode is passed to exit functions that are invoked upon calls to Fatalf
 var ExitCode = 1
-
-type Interface interface {
-	Debugf(string, ...interface{})
-	Infof(string, ...interface{})
-	Warnf(string, ...interface{})
-	Errorf(string, ...interface{})
-	Fatalf(string, ...interface{}) // Fatalf logs and then invokes an exit func
-	Panicf(string, ...interface{}) // Panicf logs and then invokes a panic func
-}
-
-type Level int
-
-const (
-	LevelDebug Level = iota
-	LevelInfo
-	LevelWarn
-	LevelError
-	LevelFatal
-	LevelPanic
-)
-
-func (min Level) Logger(at Level, logs logger.Logger) logger.Logger {
-	if at >= min {
-		return logs
-	}
-	return logger.Null()
-}
-
-var levelCodes = map[Level][]byte{
-	LevelDebug: []byte("D"),
-	LevelInfo:  []byte("I"),
-	LevelWarn:  []byte("W"),
-	LevelError: []byte("E"),
-	LevelFatal: []byte("F"),
-	LevelPanic: []byte("P"),
-}
-
-// TODO(jdef) test this
-func (x Level) Annotated() io.Decorator {
-	code, ok := levelCodes[x]
-	if !ok {
-		// fail fast
-		panic(fmt.Sprintf("unexpected level: %q", x))
-	}
-	return func(op io.StreamOp) io.StreamOp {
-		return func(c io.Context, s io.Stream, m string, a ...interface{}) (err error) {
-			if _, err = s.Write(code); err == nil {
-				err = op(c, s, m, a...)
-			}
-			return
-		}
-	}
-}
-
-type LevelTransform map[Level]func(logger.Logger) logger.Logger
-
-func (t LevelTransform) Apply(x Level, logs logger.Logger) (Level, logger.Logger) {
-	if f, ok := t[x]; ok {
-		return x, f(logs)
-	}
-	return x, logs
-}
 
 type loggers struct {
 	debugf logger.Logger
@@ -107,7 +45,7 @@ func (f *loggers) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, a
 func (f *loggers) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
 func (f *loggers) Panicf(msg string, args ...interface{}) { f.panicf.Logf(msg, args...) }
 
-func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Interface {
+func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) levels.Interface {
 	check := func(x logger.Logger) logger.Logger {
 		if x == nil {
 			return logger.Null()
@@ -126,12 +64,12 @@ func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger
 
 func LeveledStreamer(
 	ctx io.Context,
-	min Level,
+	min levels.Level,
 	s io.Stream,
 	marshaler io.StreamOp,
-	t LevelTransform,
+	t levels.Transform,
 	decorators ...io.Decorator,
-) Interface {
+) levels.Interface {
 	if marshaler == nil {
 		marshaler = io.Printf(ctx)
 	}
@@ -144,7 +82,7 @@ func LeveledStreamer(
 		applyAnnotations = true
 	}
 
-	logAt := func(level Level, d ...io.Decorator) (Level, logger.Logger) {
+	logAt := func(level levels.Level, d ...io.Decorator) (levels.Level, logger.Logger) {
 		var annotator io.Decorator
 		if applyAnnotations {
 			annotator = level.Annotated()
@@ -153,26 +91,26 @@ func LeveledStreamer(
 		return level, logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
 	}
 	return WithLevelLoggers(
-		min.Logger(t.Apply(logAt(LevelDebug, decorators...))),
-		min.Logger(t.Apply(logAt(LevelInfo, decorators...))),
-		min.Logger(t.Apply(logAt(LevelWarn, decorators...))),
-		min.Logger(t.Apply(logAt(LevelError, decorators...))),
-		min.Logger(t.Apply(logAt(LevelFatal, decorators...))),
-		min.Logger(t.Apply(logAt(LevelPanic, decorators...))),
+		min.Logger(t.Apply(logAt(levels.Debug, decorators...))),
+		min.Logger(t.Apply(logAt(levels.Info, decorators...))),
+		min.Logger(t.Apply(logAt(levels.Warn, decorators...))),
+		min.Logger(t.Apply(logAt(levels.Error, decorators...))),
+		min.Logger(t.Apply(logAt(levels.Fatal, decorators...))),
+		min.Logger(t.Apply(logAt(levels.Panic, decorators...))),
 	)
 }
 
-func LeveledLogger(min Level, logs logger.Logger, t LevelTransform) Interface {
+func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
 	return WithLevelLoggers(
-		min.Logger(t.Apply(LevelDebug, logs)),
-		min.Logger(t.Apply(LevelInfo, logs)),
-		min.Logger(t.Apply(LevelWarn, logs)),
-		min.Logger(t.Apply(LevelError, logs)),
-		min.Logger(t.Apply(LevelFatal, logs)),
-		min.Logger(t.Apply(LevelPanic, logs)),
+		min.Logger(t.Apply(levels.Debug, logs)),
+		min.Logger(t.Apply(levels.Info, logs)),
+		min.Logger(t.Apply(levels.Warn, logs)),
+		min.Logger(t.Apply(levels.Error, logs)),
+		min.Logger(t.Apply(levels.Fatal, logs)),
+		min.Logger(t.Apply(levels.Panic, logs)),
 	)
 }
 
@@ -210,7 +148,7 @@ type StreamOrLogger struct {
 }
 
 type Config struct {
-	Level Level
+	Level levels.Level
 	Sink  StreamOrLogger
 
 	// Exit, when unset, will invoke os.Exit upon calls to Fatalf
@@ -238,11 +176,11 @@ var (
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
 	DefaultConfig = Config{
-		Level: LevelInfo, // Level defaults to LevelInfo
+		Level: levels.Info, // Level defaults to levels.Info
 	}
 
 	// Default logs everything "info" and higher ("warn", "error", ...) to SystemLogger
-	Default = func() (i Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
+	Default = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
 )
 
 // Option is a functional option interface for making changes to a Config
@@ -255,20 +193,20 @@ func NoOption() (opt Option) {
 	return
 }
 
-func (cfg Config) With(opt ...Option) (Interface, Option) {
+func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
 	return cfg.WithContext(io.NoContext(), opt...)
 }
 
-func (cfg Config) WithContext(ctx io.Context, opt ...Option) (Interface, Option) {
+func (cfg Config) WithContext(ctx io.Context, opt ...Option) (levels.Interface, Option) {
 	lastOpt := NoOption()
 	for _, o := range opt {
 		if o != nil {
 			lastOpt = o(&cfg)
 		}
 	}
-	t := LevelTransform{
-		LevelFatal: func(x logger.Logger) logger.Logger { return exitLogger(x, cfg.Exit) },
-		LevelPanic: func(x logger.Logger) logger.Logger { return panicLogger(x, cfg.Panic) },
+	t := levels.Transform{
+		levels.Fatal: func(x logger.Logger) logger.Logger { return exitLogger(x, cfg.Exit) },
+		levels.Panic: func(x logger.Logger) logger.Logger { return panicLogger(x, cfg.Panic) },
 	}
 	if cfg.Sink.Stream != nil {
 		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Marshaler, t, cfg.Decorators...), lastOpt
@@ -276,11 +214,11 @@ func (cfg Config) WithContext(ctx io.Context, opt ...Option) (Interface, Option)
 	return LeveledLogger(cfg.Level, cfg.Sink.Logger, t), lastOpt
 }
 
-func (level Level) Option() Option {
+func Level(level levels.Level) Option {
 	return func(c *Config) Option {
 		old := c.Level
 		c.Level = level
-		return old.Option()
+		return Level(old)
 	}
 }
 
