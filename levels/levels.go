@@ -85,3 +85,18 @@ func (t Transform) Apply(x Level, logs logger.Logger) (Level, logger.Logger) {
 	}
 	return x, logs
 }
+
+type key int
+
+const (
+	levelKey key = iota
+)
+
+func (x Level) NewContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, levelKey, x)
+}
+
+func FromContext(ctx context.Context) (Level, bool) {
+	x, ok := ctx.Value(levelKey).(Level)
+	return x, ok
+}
