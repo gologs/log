@@ -1,4 +1,4 @@
-![GoDoc] (https://godoc.org/github.com/jdef/log?status.png)
+[![GoDoc] (https://godoc.org/github.com/jdef/log?status.png)](https://godoc.org/github.com/jdef/log)
 
 ## Status
 
