@@ -18,6 +18,7 @@ package config
 
 import (
 	"os"
+	"sync"
 
 	"github.com/jdef/log/io"
 	"github.com/jdef/log/levels"
@@ -60,6 +61,16 @@ func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger
 	}
 }
 
+type lockGuard struct{ sync.Mutex }
+
+func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
+	return x, logger.LoggerFunc(func(m string, a ...interface{}) {
+		g.Lock()
+		defer g.Unlock()
+		logs.Logf(m, a...)
+	})
+}
+
 func LeveledStreamer(
 	ctx io.Context,
 	min levels.Level,
@@ -68,6 +79,9 @@ func LeveledStreamer(
 	t levels.Transform,
 	decorators ...io.Decorator,
 ) levels.Interface {
+	if ctx == nil {
+		ctx = io.NoContext()
+	}
 	if marshaler == nil {
 		marshaler = io.Printf(ctx)
 	}
@@ -84,21 +98,25 @@ func LeveledStreamer(
 	// can embed the log level there. That way the annotator decorator isn't so special
 	// cased here.
 
-	logAt := func(level levels.Level, d ...io.Decorator) (levels.Level, logger.Logger) {
-		var annotator io.Decorator
-		if applyAnnotations {
-			annotator = level.Annotated()
+	var (
+		logAt = func(level levels.Level, d ...io.Decorator) (levels.Level, logger.Logger) {
+			var annotator io.Decorator
+			if applyAnnotations {
+				annotator = level.Annotated()
+			}
+			d = append(d, annotator)
+			logs := logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
+			return level, logs
 		}
-		d = append(d, annotator)
-		return level, logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
-	}
+		g lockGuard
+	)
 	return WithLevelLoggers(
-		min.Logger(t.Apply(logAt(levels.Debug, decorators...))),
-		min.Logger(t.Apply(logAt(levels.Info, decorators...))),
-		min.Logger(t.Apply(logAt(levels.Warn, decorators...))),
-		min.Logger(t.Apply(logAt(levels.Error, decorators...))),
-		min.Logger(t.Apply(logAt(levels.Fatal, decorators...))),
-		min.Logger(t.Apply(logAt(levels.Panic, decorators...))),
+		min.Logger(g.Apply(t.Apply(logAt(levels.Debug, decorators...)))),
+		min.Logger(g.Apply(t.Apply(logAt(levels.Info, decorators...)))),
+		min.Logger(g.Apply(t.Apply(logAt(levels.Warn, decorators...)))),
+		min.Logger(g.Apply(t.Apply(logAt(levels.Error, decorators...)))),
+		min.Logger(g.Apply(t.Apply(logAt(levels.Fatal, decorators...)))),
+		min.Logger(g.Apply(t.Apply(logAt(levels.Panic, decorators...)))),
 	)
 }
 
@@ -107,15 +125,14 @@ func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) lev
 		logs = logger.SystemLogger()
 	}
 
-	// TODO(jdef) need to make this thread safe
-
+	var g lockGuard
 	return WithLevelLoggers(
-		min.Logger(t.Apply(levels.Debug, logs)),
-		min.Logger(t.Apply(levels.Info, logs)),
-		min.Logger(t.Apply(levels.Warn, logs)),
-		min.Logger(t.Apply(levels.Error, logs)),
-		min.Logger(t.Apply(levels.Fatal, logs)),
-		min.Logger(t.Apply(levels.Panic, logs)),
+		min.Logger(g.Apply(t.Apply(levels.Debug, logs))),
+		min.Logger(g.Apply(t.Apply(levels.Info, logs))),
+		min.Logger(g.Apply(t.Apply(levels.Warn, logs))),
+		min.Logger(g.Apply(t.Apply(levels.Error, logs))),
+		min.Logger(g.Apply(t.Apply(levels.Fatal, logs))),
+		min.Logger(g.Apply(t.Apply(levels.Panic, logs))),
 	)
 }
 
