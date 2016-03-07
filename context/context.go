@@ -18,10 +18,31 @@ package context
 
 type Context interface {
 	Done() <-chan struct{}
+	Value(interface{}) interface{}
 }
 
 type nullContext <-chan struct{}
 
-func (c nullContext) Done() <-chan struct{} { return nil }
+func (c nullContext) Done() <-chan struct{}           { return nil }
+func (c nullContext) Value(_ interface{}) interface{} { return nil }
 
 func None() Context { return nullContext(nil) }
+
+// stateful naively implements Context
+type stateful struct {
+	Context
+	key, value interface{}
+}
+
+func (c *stateful) Value(key interface{}) interface{} {
+	if key == c.key {
+		return c.value
+	}
+	return c.Context.Value(key)
+}
+
+// WithValue returns a Context that associates value with key. Should not modify the
+// original Context, `c`.
+func WithValue(c Context, key, value interface{}) Context {
+	return &stateful{c, key, value}
+}
