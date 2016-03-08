@@ -36,6 +36,9 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 	})
 }
 
+// Apply is a levels.TransformOp
+var _ = levels.TransformOp((&lockGuard{}).Apply)
+
 func addLevelToContext(x levels.Level) io.Decorator {
 	return func(op io.StreamOp) io.StreamOp {
 		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
@@ -45,14 +48,12 @@ func addLevelToContext(x levels.Level) io.Decorator {
 
 }
 
-type ChainFunc func(levels.Level, logger.Logger) (levels.Level, logger.Logger)
-
 // GenerateLevelLoggers builds a logger for every known log level; for each level
 // create a seed logger and apply chain funcs. The results may be fed directly into
 // levels.WithLoggers.
 func GenerateLevelLoggers(
 	seed func(levels.Level) logger.Logger,
-	chain ...ChainFunc,
+	chain ...levels.TransformOp,
 ) (_, _, _, _, _, _ logger.Logger) {
 
 	m := map[levels.Level]logger.Logger{}
@@ -72,7 +73,7 @@ func GenerateLevelLoggers(
 		m[levels.Panic]
 }
 
-func minLogger(min levels.Level) ChainFunc {
+func minLogger(min levels.Level) levels.TransformOp {
 	return func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
 		return x, min.Logger(x, logs)
 	}

@@ -87,6 +87,8 @@ func (t Transform) Apply(x Level, logs logger.Logger) (Level, logger.Logger) {
 	return x, logs
 }
 
+type TransformOp func(Level, logger.Logger) (Level, logger.Logger)
+
 type key int
 
 const (
