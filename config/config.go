@@ -39,8 +39,8 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 // Apply is a levels.TransformOp
 var _ = levels.TransformOp((&lockGuard{}).Apply)
 
-func addLevelToContext(x levels.Level) io.Decorator {
-	return io.Context(func(c context.Context) context.Context {
+func addLevelToContext(x levels.Level) logger.Decorator {
+	return logger.Context(func(c context.Context) context.Context {
 		return x.NewContext(c)
 	})
 }
@@ -93,16 +93,12 @@ func LeveledStreamer(
 		decorators = io.Decorators{levels.Annotator()}
 	}
 
-	logAt := func(level levels.Level) logger.Logger {
-		// order is important: addLevelToContext must come after a possible levels.Annotator,
-		// and every other user-configured decorator (in case they want to query the level)
-		return logger.StreamLogger(
-			s,
-			logger.IgnoreErrors(),
-			addLevelToContext(level)(io.Decorators(decorators).Decorate(marshaler)),
-		)
-	}
-	return leveledLogger(ctx, min, logAt, t)
+	logs := logger.WithStream(
+		s,
+		logger.IgnoreErrors(),
+		io.Decorators(decorators).Decorate(marshaler),
+	)
+	return leveledLogger(ctx, min, logs, t)
 }
 
 func LeveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
@@ -112,13 +108,17 @@ func LeveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t 
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
-	seed := func(_ levels.Level) logger.Logger { return logs }
-	return leveledLogger(ctx, min, seed, t)
+	return leveledLogger(ctx, min, logs, t)
 }
 
-func leveledLogger(ctx context.Context, min levels.Level, seed func(levels.Level) logger.Logger, t levels.Transform) levels.Interface {
-	var g lockGuard
-	return levels.WithLoggers(GenerateLevelLoggers(ctx, seed, t.Apply, g.Apply, min.Min()))
+func leveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
+	var (
+		logAt = func(level levels.Level) logger.Logger {
+			return addLevelToContext(level)(logs)
+		}
+		g lockGuard
+	)
+	return levels.WithLoggers(GenerateLevelLoggers(ctx, logAt, t.Apply, g.Apply, min.Min()))
 }
 
 func safeExit(fexit func(int)) func(int) {
