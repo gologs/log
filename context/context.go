@@ -46,3 +46,5 @@ func (c *stateful) Value(key interface{}) interface{} {
 func WithValue(c Context, key, value interface{}) Context {
 	return &stateful{c, key, value}
 }
+
+type Decorator func(Context) Context

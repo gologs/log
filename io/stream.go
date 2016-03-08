@@ -39,6 +39,7 @@ func (ns *nullStream) Write(b []byte) (int, error) {
 
 var ns = &nullStream{}
 
+// Null returns a stream that swallows all output (like /dev/null)
 func Null() Stream { return ns }
 
 type BufferedStream struct {
@@ -71,6 +72,8 @@ var nullOp = func(_ context.Context, _ Stream, _ string, _ ...interface{}) (_ er
 func NullOp() StreamOp { return nullOp }
 
 type Decorator func(StreamOp) StreamOp
+
+func NoDecorator() Decorator { return func(x StreamOp) StreamOp { return x } }
 
 type Decorators []Decorator
 
@@ -111,4 +114,37 @@ func Printf(ctx context.Context, d ...Decorator) StreamOp {
 			w.EOM(err)
 			return
 		}))
+}
+
+// Prefix returns a stream Decorator that outputs a prefix blob for each stream
+// operation.
+func Prefix(f func(context.Context) ([]byte, error)) Decorator {
+	if f == nil {
+		return NoDecorator()
+	}
+	return func(op StreamOp) StreamOp {
+		return func(c context.Context, s Stream, m string, a ...interface{}) (err error) {
+			var b []byte
+			if b, err = f(c); err == nil && len(b) > 0 {
+				_, err = s.Write(b)
+			}
+			if err == nil {
+				err = op(c, s, m, a...)
+			}
+			return
+		}
+	}
+}
+
+// Context returns a stream Decorator that applies a context.Decorator for each
+// stream operation.
+func Context(f context.Decorator) Decorator {
+	if f == nil {
+		return NoDecorator()
+	}
+	return func(op StreamOp) StreamOp {
+		return func(c context.Context, s Stream, m string, a ...interface{}) error {
+			return op(f(c), s, m, a...)
+		}
+	}
 }

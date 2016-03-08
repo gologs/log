@@ -40,12 +40,9 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 var _ = levels.TransformOp((&lockGuard{}).Apply)
 
 func addLevelToContext(x levels.Level) io.Decorator {
-	return func(op io.StreamOp) io.StreamOp {
-		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
-			return op(x.NewContext(c), s, m, a...)
-		}
-	}
-
+	return io.Context(func(c context.Context) context.Context {
+		return x.NewContext(c)
+	})
 }
 
 // GenerateLevelLoggers builds a logger for every known log level; for each level
@@ -71,12 +68,6 @@ func GenerateLevelLoggers(
 		m[levels.Error],
 		m[levels.Fatal],
 		m[levels.Panic]
-}
-
-func minLogger(min levels.Level) levels.TransformOp {
-	return func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
-		return x, min.Logger(x, logs)
-	}
 }
 
 func LeveledStreamer(
@@ -123,7 +114,7 @@ func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) lev
 
 func leveledLogger(min levels.Level, seed func(levels.Level) logger.Logger, t levels.Transform) levels.Interface {
 	var g lockGuard
-	return levels.WithLoggers(GenerateLevelLoggers(seed, t.Apply, g.Apply, minLogger(min)))
+	return levels.WithLoggers(GenerateLevelLoggers(seed, t.Apply, g.Apply, min.Min()))
 }
 
 func safeExit(fexit func(int)) func(int) {

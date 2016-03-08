@@ -63,19 +63,14 @@ var levelCodes = map[Level][]byte{
 }
 
 func Annotator() io.Decorator {
-	return func(op io.StreamOp) io.StreamOp {
-		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
-			if x, ok := FromContext(c); ok {
-				if code, ok := levelCodes[x]; ok {
-					_, err = s.Write(code)
-				}
+	return io.Prefix(func(c context.Context) (b []byte, err error) {
+		if x, ok := FromContext(c); ok {
+			if code, ok := levelCodes[x]; ok {
+				b = code
 			}
-			if err == nil {
-				err = op(c, s, m, a...)
-			}
-			return
 		}
-	}
+		return
+	})
 }
 
 type Transform map[Level]func(logger.Logger) logger.Logger
@@ -134,5 +129,11 @@ func WithLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Int
 		check(errorf),
 		check(fatalf),
 		check(panicf),
+	}
+}
+
+func (min Level) Min() TransformOp {
+	return func(x Level, logs logger.Logger) (Level, logger.Logger) {
+		return x, min.Logger(x, logs)
 	}
 }
