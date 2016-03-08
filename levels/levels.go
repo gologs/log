@@ -101,3 +101,36 @@ func FromContext(ctx context.Context) (Level, bool) {
 	x, ok := ctx.Value(levelKey).(Level)
 	return x, ok
 }
+
+type loggers struct {
+	debugf logger.Logger
+	infof  logger.Logger
+	warnf  logger.Logger
+	errorf logger.Logger
+	fatalf logger.Logger
+	panicf logger.Logger
+}
+
+func (f *loggers) Debugf(msg string, args ...interface{}) { f.debugf.Logf(msg, args...) }
+func (f *loggers) Infof(msg string, args ...interface{})  { f.infof.Logf(msg, args...) }
+func (f *loggers) Warnf(msg string, args ...interface{})  { f.warnf.Logf(msg, args...) }
+func (f *loggers) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, args...) }
+func (f *loggers) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
+func (f *loggers) Panicf(msg string, args ...interface{}) { f.panicf.Logf(msg, args...) }
+
+func WithLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Interface {
+	check := func(x logger.Logger) logger.Logger {
+		if x == nil {
+			return logger.Null()
+		}
+		return x
+	}
+	return &loggers{
+		check(debugf),
+		check(infof),
+		check(warnf),
+		check(errorf),
+		check(fatalf),
+		check(panicf),
+	}
+}

@@ -26,39 +26,6 @@ import (
 	"github.com/jdef/log/logger"
 )
 
-type loggers struct {
-	debugf logger.Logger
-	infof  logger.Logger
-	warnf  logger.Logger
-	errorf logger.Logger
-	fatalf logger.Logger
-	panicf logger.Logger
-}
-
-func (f *loggers) Debugf(msg string, args ...interface{}) { f.debugf.Logf(msg, args...) }
-func (f *loggers) Infof(msg string, args ...interface{})  { f.infof.Logf(msg, args...) }
-func (f *loggers) Warnf(msg string, args ...interface{})  { f.warnf.Logf(msg, args...) }
-func (f *loggers) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, args...) }
-func (f *loggers) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
-func (f *loggers) Panicf(msg string, args ...interface{}) { f.panicf.Logf(msg, args...) }
-
-func WithLevelLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) levels.Interface {
-	check := func(x logger.Logger) logger.Logger {
-		if x == nil {
-			return logger.Null()
-		}
-		return x
-	}
-	return &loggers{
-		check(debugf),
-		check(infof),
-		check(warnf),
-		check(errorf),
-		check(fatalf),
-		check(panicf),
-	}
-}
-
 type lockGuard struct{ sync.Mutex }
 
 func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
@@ -82,7 +49,7 @@ type ChainFunc func(levels.Level, logger.Logger) (levels.Level, logger.Logger)
 
 // GenerateLevelLoggers builds a logger for every known log level; for each level
 // create a seed logger and apply chain funcs. The results may be fed directly into
-// WithLevelLoggers.
+// levels.WithLoggers.
 func GenerateLevelLoggers(
 	seed func(levels.Level) logger.Logger,
 	chain ...ChainFunc,
@@ -155,7 +122,7 @@ func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) lev
 
 func leveledLogger(min levels.Level, seed func(levels.Level) logger.Logger, t levels.Transform) levels.Interface {
 	var g lockGuard
-	return WithLevelLoggers(GenerateLevelLoggers(seed, t.Apply, g.Apply, minLogger(min)))
+	return levels.WithLoggers(GenerateLevelLoggers(seed, t.Apply, g.Apply, minLogger(min)))
 }
 
 func safeExit(fexit func(int)) func(int) {
