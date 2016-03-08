@@ -26,3 +26,6 @@ func Warnf(msg string, args ...interface{})  { config.Default.Warnf(msg, args...
 func Errorf(msg string, args ...interface{}) { config.Default.Errorf(msg, args...) }
 func Fatalf(msg string, args ...interface{}) { config.Default.Fatalf(msg, args...) }
 func Panicf(msg string, args ...interface{}) { config.Default.Panicf(msg, args...) }
+
+// Logf is an alias for Infof
+func Logf(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
