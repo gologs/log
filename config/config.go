@@ -29,10 +29,10 @@ import (
 type lockGuard struct{ sync.Mutex }
 
 func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
-	return x, logger.LoggerFunc(func(m string, a ...interface{}) {
+	return x, logger.LoggerFunc(func(c context.Context, m string, a ...interface{}) {
 		g.Lock()
 		defer g.Unlock()
-		logs.Logf(m, a...)
+		logs.Logf(c, m, a...)
 	})
 }
 
@@ -49,9 +49,10 @@ func addLevelToContext(x levels.Level) io.Decorator {
 // create a seed logger and apply chain funcs. The results may be fed directly into
 // levels.WithLoggers.
 func GenerateLevelLoggers(
+	ctx context.Context,
 	seed func(levels.Level) logger.Logger,
 	chain ...levels.TransformOp,
-) (_, _, _, _, _, _ logger.Logger) {
+) (_ context.Context, _, _, _, _, _, _ logger.Logger) {
 
 	m := map[levels.Level]logger.Logger{}
 
@@ -62,7 +63,8 @@ func GenerateLevelLoggers(
 		}
 		m[x] = logs
 	}
-	return m[levels.Debug],
+	return ctx,
+		m[levels.Debug],
 		m[levels.Info],
 		m[levels.Warn],
 		m[levels.Error],
@@ -95,26 +97,28 @@ func LeveledStreamer(
 		// order is important: addLevelToContext must come after a possible levels.Annotator,
 		// and every other user-configured decorator (in case they want to query the level)
 		return logger.StreamLogger(
-			ctx,
 			s,
 			logger.IgnoreErrors(),
 			addLevelToContext(level)(io.Decorators(decorators).Decorate(marshaler)),
 		)
 	}
-	return leveledLogger(min, logAt, t)
+	return leveledLogger(ctx, min, logAt, t)
 }
 
-func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
+func LeveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
+	if ctx == nil {
+		ctx = context.None()
+	}
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
 	seed := func(_ levels.Level) logger.Logger { return logs }
-	return leveledLogger(min, seed, t)
+	return leveledLogger(ctx, min, seed, t)
 }
 
-func leveledLogger(min levels.Level, seed func(levels.Level) logger.Logger, t levels.Transform) levels.Interface {
+func leveledLogger(ctx context.Context, min levels.Level, seed func(levels.Level) logger.Logger, t levels.Transform) levels.Interface {
 	var g lockGuard
-	return levels.WithLoggers(GenerateLevelLoggers(seed, t.Apply, g.Apply, min.Min()))
+	return levels.WithLoggers(GenerateLevelLoggers(ctx, seed, t.Apply, g.Apply, min.Min()))
 }
 
 func safeExit(fexit func(int)) func(int) {
@@ -132,16 +136,16 @@ func safePanic(fpanic func(string)) func(string) {
 }
 
 func exitLogger(logs logger.Logger, fexit func(int), code int) logger.Logger {
-	return logger.LoggerFunc(func(m string, a ...interface{}) {
+	return logger.LoggerFunc(func(c context.Context, m string, a ...interface{}) {
 		defer safeExit(fexit)(code)
-		logs.Logf(m, a...)
+		logs.Logf(c, m, a...)
 	})
 }
 
 func panicLogger(logs logger.Logger, fpanic func(string)) logger.Logger {
-	return logger.LoggerFunc(func(m string, a ...interface{}) {
+	return logger.LoggerFunc(func(c context.Context, m string, a ...interface{}) {
 		defer safePanic(fpanic)(m)
-		logs.Logf(m, a...)
+		logs.Logf(c, m, a...)
 	})
 }
 
@@ -218,7 +222,7 @@ func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interf
 	if cfg.Sink.Stream != nil {
 		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Marshaler, t, cfg.Decorators...), lastOpt
 	}
-	return LeveledLogger(cfg.Level, cfg.Sink.Logger, t), lastOpt
+	return LeveledLogger(ctx, cfg.Level, cfg.Sink.Logger, t), lastOpt
 }
 
 func Level(level levels.Level) Option {

@@ -100,6 +100,7 @@ func FromContext(ctx context.Context) (Level, bool) {
 }
 
 type loggers struct {
+	ic     func() context.Context // initialContext
 	debugf logger.Logger
 	infof  logger.Logger
 	warnf  logger.Logger
@@ -108,14 +109,14 @@ type loggers struct {
 	panicf logger.Logger
 }
 
-func (f *loggers) Debugf(msg string, args ...interface{}) { f.debugf.Logf(msg, args...) }
-func (f *loggers) Infof(msg string, args ...interface{})  { f.infof.Logf(msg, args...) }
-func (f *loggers) Warnf(msg string, args ...interface{})  { f.warnf.Logf(msg, args...) }
-func (f *loggers) Errorf(msg string, args ...interface{}) { f.errorf.Logf(msg, args...) }
-func (f *loggers) Fatalf(msg string, args ...interface{}) { f.fatalf.Logf(msg, args...) }
-func (f *loggers) Panicf(msg string, args ...interface{}) { f.panicf.Logf(msg, args...) }
+func (f *loggers) Debugf(m string, a ...interface{}) { f.debugf.Logf(f.ic(), m, a...) }
+func (f *loggers) Infof(m string, a ...interface{})  { f.infof.Logf(f.ic(), m, a...) }
+func (f *loggers) Warnf(m string, a ...interface{})  { f.warnf.Logf(f.ic(), m, a...) }
+func (f *loggers) Errorf(m string, a ...interface{}) { f.errorf.Logf(f.ic(), m, a...) }
+func (f *loggers) Fatalf(m string, a ...interface{}) { f.fatalf.Logf(f.ic(), m, a...) }
+func (f *loggers) Panicf(m string, a ...interface{}) { f.panicf.Logf(f.ic(), m, a...) }
 
-func WithLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Interface {
+func WithLoggers(ctx context.Context, debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Interface {
 	check := func(x logger.Logger) logger.Logger {
 		if x == nil {
 			return logger.Null()
@@ -123,6 +124,7 @@ func WithLoggers(debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Int
 		return x
 	}
 	return &loggers{
+		func() context.Context { return ctx },
 		check(debugf),
 		check(infof),
 		check(warnf),

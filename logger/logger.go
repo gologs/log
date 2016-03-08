@@ -24,16 +24,16 @@ import (
 )
 
 type Logger interface {
-	Logf(string, ...interface{})
+	Logf(context.Context, string, ...interface{})
 }
 
-type LoggerFunc func(string, ...interface{})
+type LoggerFunc func(context.Context, string, ...interface{})
 
-func (f LoggerFunc) Logf(msg string, args ...interface{}) {
-	f(msg, args...)
+func (f LoggerFunc) Logf(c context.Context, msg string, args ...interface{}) {
+	f(c, msg, args...)
 }
 
-func Null() Logger { return LoggerFunc(func(_ string, _ ...interface{}) {}) }
+func Null() Logger { return LoggerFunc(func(_ context.Context, _ string, _ ...interface{}) {}) }
 
 // IgnoreErrors is a convenience func to improve readability of func invocations
 // that accept an error promise.
@@ -44,8 +44,8 @@ func IgnoreErrors() chan<- error {
 // StreamLogger generates a Logger that writes log events to the given
 // io.Stream using the given `op` marshaler. It is expected that a marshaler
 // will invoke EOM after processing each log event.
-func StreamLogger(ctx context.Context, s io.Stream, errCh chan<- error, op io.StreamOp) Logger {
-	return LoggerFunc(func(m string, a ...interface{}) {
+func StreamLogger(s io.Stream, errCh chan<- error, op io.StreamOp) Logger {
+	return LoggerFunc(func(ctx context.Context, m string, a ...interface{}) {
 		if err := op(ctx, s, m, a...); err != nil && errCh != nil {
 			// attempt to send back errors to the caller
 			select {
@@ -83,7 +83,7 @@ func WriterLogger(w stdio.Writer) Logger {
 // SystemLogger generates a Logger that logs to the golang Print family
 // of functions.
 func SystemLogger() Logger {
-	return LoggerFunc(func(m string, a ...interface{}) {
+	return LoggerFunc(func(_ context.Context, m string, a ...interface{}) {
 		if len(a) > 0 {
 			if m == "" {
 				log.Println(a...)
@@ -96,6 +96,7 @@ func SystemLogger() Logger {
 	})
 }
 
+/*
 type Cancel interface {
 	Logger
 	Cancel()
@@ -117,3 +118,4 @@ func WithContext(ctx context.Context, logger Cancel) Logger {
 
 	})
 }
+*/
