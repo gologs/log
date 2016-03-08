@@ -72,6 +72,48 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 	})
 }
 
+func addLevelToContext(x levels.Level) io.Decorator {
+	return func(op io.StreamOp) io.StreamOp {
+		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
+			return op(x.NewContext(c), s, m, a...)
+		}
+	}
+
+}
+
+type ChainFunc func(levels.Level, logger.Logger) (levels.Level, logger.Logger)
+
+// GenerateLevelLoggers builds a logger for every known log level; for each level
+// create a seed logger and apply chain funcs. The results may be fed directly into
+// WithLevelLoggers.
+func GenerateLevelLoggers(
+	seed func(levels.Level) logger.Logger,
+	chain ...ChainFunc,
+) (_, _, _, _, _, _ logger.Logger) {
+
+	m := map[levels.Level]logger.Logger{}
+
+	for _, x := range levels.Levels() {
+		logs := seed(x)
+		for _, c := range chain {
+			x, logs = c(x, logs)
+		}
+		m[x] = logs
+	}
+	return m[levels.Debug],
+		m[levels.Info],
+		m[levels.Warn],
+		m[levels.Error],
+		m[levels.Fatal],
+		m[levels.Panic]
+}
+
+func minLogger(min levels.Level) ChainFunc {
+	return func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
+		return x, min.Logger(x, logs)
+	}
+}
+
 func LeveledStreamer(
 	ctx context.Context,
 	min levels.Level,
@@ -89,52 +131,34 @@ func LeveledStreamer(
 	if s == nil {
 		s = io.SystemStream()
 	}
-
-	applyAnnotations := false
 	if len(decorators) == 0 {
-		applyAnnotations = true
+		decorators = io.Decorators{levels.Annotator()}
 	}
 
-	// TODO(jdef) thinking about adding name/value pair support to Context so that I
-	// can embed the log level there. That way the annotator decorator isn't so special
-	// cased here.
-
-	var (
-		logAt = func(level levels.Level, d ...io.Decorator) (levels.Level, logger.Logger) {
-			var annotator io.Decorator
-			if applyAnnotations {
-				annotator = level.Annotated()
-			}
-			d = append(d, annotator)
-			logs := logger.StreamLogger(ctx, s, logger.IgnoreErrors(), marshaler, d...)
-			return level, logs
-		}
-		g lockGuard
-	)
-	return WithLevelLoggers(
-		min.Logger(g.Apply(t.Apply(logAt(levels.Debug, decorators...)))),
-		min.Logger(g.Apply(t.Apply(logAt(levels.Info, decorators...)))),
-		min.Logger(g.Apply(t.Apply(logAt(levels.Warn, decorators...)))),
-		min.Logger(g.Apply(t.Apply(logAt(levels.Error, decorators...)))),
-		min.Logger(g.Apply(t.Apply(logAt(levels.Fatal, decorators...)))),
-		min.Logger(g.Apply(t.Apply(logAt(levels.Panic, decorators...)))),
-	)
+	logAt := func(level levels.Level) logger.Logger {
+		// order is important: addLevelToContext must come after a possible levels.Annotator,
+		// and every other user-configured decorator (in case they want to query the level)
+		return logger.StreamLogger(
+			ctx,
+			s,
+			logger.IgnoreErrors(),
+			addLevelToContext(level)(io.Decorators(decorators).Decorate(marshaler)),
+		)
+	}
+	return leveledLogger(min, logAt, t)
 }
 
 func LeveledLogger(min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
+	seed := func(_ levels.Level) logger.Logger { return logs }
+	return leveledLogger(min, seed, t)
+}
 
+func leveledLogger(min levels.Level, seed func(levels.Level) logger.Logger, t levels.Transform) levels.Interface {
 	var g lockGuard
-	return WithLevelLoggers(
-		min.Logger(g.Apply(t.Apply(levels.Debug, logs))),
-		min.Logger(g.Apply(t.Apply(levels.Info, logs))),
-		min.Logger(g.Apply(t.Apply(levels.Warn, logs))),
-		min.Logger(g.Apply(t.Apply(levels.Error, logs))),
-		min.Logger(g.Apply(t.Apply(levels.Fatal, logs))),
-		min.Logger(g.Apply(t.Apply(levels.Panic, logs))),
-	)
+	return WithLevelLoggers(GenerateLevelLoggers(seed, t.Apply, g.Apply, minLogger(min)))
 }
 
 func safeExit(fexit func(int)) func(int) {

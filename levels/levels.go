@@ -17,8 +17,6 @@ limitations under the License.
 package levels
 
 import (
-	"fmt"
-
 	"github.com/jdef/log/context"
 	"github.com/jdef/log/io"
 	"github.com/jdef/log/logger"
@@ -44,6 +42,10 @@ const (
 	Panic
 )
 
+func Levels() []Level {
+	return []Level{Debug, Info, Warn, Error, Fatal, Panic}
+}
+
 func (min Level) Logger(at Level, logs logger.Logger) logger.Logger {
 	if at >= min {
 		return logs
@@ -60,16 +62,15 @@ var levelCodes = map[Level][]byte{
 	Panic: []byte("P"),
 }
 
-// TODO(jdef) test this
-func (x Level) Annotated() io.Decorator {
-	code, ok := levelCodes[x]
-	if !ok {
-		// fail fast
-		panic(fmt.Sprintf("unexpected level: %q", x))
-	}
+func Annotator() io.Decorator {
 	return func(op io.StreamOp) io.StreamOp {
 		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
-			if _, err = s.Write(code); err == nil {
+			if x, ok := FromContext(c); ok {
+				if code, ok := levelCodes[x]; ok {
+					_, err = s.Write(code)
+				}
+			}
+			if err == nil {
 				err = op(c, s, m, a...)
 			}
 			return
