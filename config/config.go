@@ -26,9 +26,6 @@ import (
 	"github.com/jdef/log/logger"
 )
 
-// ExitCode is passed to exit functions that are invoked upon calls to Fatalf
-var ExitCode = 1
-
 type loggers struct {
 	debugf logger.Logger
 	infof  logger.Logger
@@ -175,9 +172,9 @@ func safePanic(fpanic func(string)) func(string) {
 	return fpanic
 }
 
-func exitLogger(logs logger.Logger, fexit func(int)) logger.Logger {
+func exitLogger(logs logger.Logger, fexit func(int), code int) logger.Logger {
 	return logger.LoggerFunc(func(m string, a ...interface{}) {
-		defer safeExit(fexit)(ExitCode)
+		defer safeExit(fexit)(code)
 		logs.Logf(m, a...)
 	})
 }
@@ -197,6 +194,9 @@ type StreamOrLogger struct {
 type Config struct {
 	Level levels.Level
 	Sink  StreamOrLogger
+
+	// ExitCode is passed to exit functions that are invoked upon calls to Fatalf
+	ExitCode int
 
 	// Exit, when unset, will invoke os.Exit upon calls to Fatalf
 	Exit func(int)
@@ -223,7 +223,8 @@ var (
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
 	DefaultConfig = Config{
-		Level: levels.Info, // Level defaults to levels.Info
+		Level:    levels.Info, // Level defaults to levels.Info
+		ExitCode: 1,           // ExitCode defaults to 1
 	}
 
 	// Default logs everything "info" and higher ("warn", "error", ...) to SystemLogger
@@ -252,7 +253,7 @@ func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interf
 		}
 	}
 	t := levels.Transform{
-		levels.Fatal: func(x logger.Logger) logger.Logger { return exitLogger(x, cfg.Exit) },
+		levels.Fatal: func(x logger.Logger) logger.Logger { return exitLogger(x, cfg.Exit, cfg.ExitCode) },
 		levels.Panic: func(x logger.Logger) logger.Logger { return panicLogger(x, cfg.Panic) },
 	}
 	if cfg.Sink.Stream != nil {
@@ -290,6 +291,14 @@ func Exit(f func(int)) Option {
 		old := c.Exit
 		c.Exit = f
 		return Exit(old)
+	}
+}
+
+func ExitCode(code int) Option {
+	return func(c *Config) Option {
+		old := c.ExitCode
+		c.ExitCode = code
+		return ExitCode(old)
 	}
 }
 
