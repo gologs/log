@@ -118,6 +118,9 @@ func leveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t 
 		}
 		g lockGuard
 	)
+	// TODO(jdef) would be nice to inject caller info into context (file/line); this is
+	// probably the best place to do it since we can predict the call-depth here and it
+	// will work for both Stream- and Logger- based approaches.
 	return levels.WithLoggers(GenerateLevelLoggers(ctx, logAt, t.Apply, g.Apply, min.Min()))
 }
 
