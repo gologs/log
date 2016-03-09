@@ -20,6 +20,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/jdef/log/caller"
 	"github.com/jdef/log/context"
 	"github.com/jdef/log/io"
 	"github.com/jdef/log/levels"
@@ -78,6 +79,7 @@ func LeveledStreamer(
 	s io.Stream,
 	marshaler io.StreamOp,
 	t levels.Transform,
+	callTracking bool,
 	decorators ...io.Decorator,
 ) levels.Interface {
 	if ctx == nil {
@@ -98,30 +100,57 @@ func LeveledStreamer(
 		logger.IgnoreErrors(),
 		io.Decorators(decorators).Decorate(marshaler),
 	)
-	return leveledLogger(ctx, min, logs, t)
+	return leveledLogger(ctx, min, logs, t, callTracking)
 }
 
-func LeveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
+func LeveledLogger(
+	ctx context.Context,
+	min levels.Level,
+	logs logger.Logger,
+	t levels.Transform,
+	callTracking bool,
+) levels.Interface {
 	if ctx == nil {
 		ctx = context.None()
 	}
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
-	return leveledLogger(ctx, min, logs, t)
+	return leveledLogger(ctx, min, logs, t, callTracking)
 }
 
-func leveledLogger(ctx context.Context, min levels.Level, logs logger.Logger, t levels.Transform) levels.Interface {
+func leveledLogger(
+	ctx context.Context,
+	min levels.Level,
+	logs logger.Logger,
+	t levels.Transform,
+	callTracking bool,
+) levels.Interface {
 	var (
 		logAt = func(level levels.Level) logger.Logger {
 			return addLevelToContext(level)(logs)
 		}
-		g lockGuard
+		g    lockGuard
+		tops = []levels.TransformOp{t.Apply, g.Apply}
 	)
-	// TODO(jdef) would be nice to inject caller info into context (file/line); this is
-	// probably the best place to do it since we can predict the call-depth here and it
-	// will work for both Stream- and Logger- based approaches.
-	return levels.WithLoggers(GenerateLevelLoggers(ctx, logAt, t.Apply, g.Apply, min.Min()))
+	if callTracking {
+		tops = append(tops,
+			// inject caller info into context (file/line); this is probably the best place to do it
+			// since we can predict the call-depth here and it will work for both Stream- and Logger-
+			// based approaches.
+			// NOTE: the call-depth specified (4) has been carefully selected; if any transforms are
+			// introduced that would further wrap the logger that we consume below then the call-depth
+			// will need to be increased accordingly.
+			// NOTE: care has been taken to avoid locking the guard Mutex until absolutely necessary.
+			// For example, the log level threshold filter and caller injection both execute *before*
+			// the mutex is locked (pulling the call stack run the runtime is expensive).
+			levels.TransformOp(func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
+				return x, caller.Logger(4, logs)
+			}),
+		)
+	}
+	tops = append(tops, min.Min())
+	return levels.WithLoggers(GenerateLevelLoggers(ctx, logAt, tops...))
 }
 
 func safeExit(fexit func(int)) func(int) {
@@ -161,6 +190,10 @@ type Config struct {
 	Level levels.Level
 	Sink  StreamOrLogger
 
+	// CallTracking, when true, queries runtime for the call stack to populate Caller
+	// in the logging Context.
+	CallTracking bool
+
 	// ExitCode is passed to exit functions that are invoked upon calls to Fatalf
 	ExitCode int
 
@@ -189,8 +222,9 @@ var (
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
 	DefaultConfig = Config{
-		Level:    levels.Info, // Level defaults to levels.Info
-		ExitCode: 1,           // ExitCode defaults to 1
+		Level:        levels.Info, // Level defaults to levels.Info
+		ExitCode:     1,           // ExitCode defaults to 1
+		CallTracking: true,
 	}
 
 	// Default logs everything "info" and higher ("warn", "error", ...) to SystemLogger
@@ -219,13 +253,29 @@ func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interf
 		}
 	}
 	t := levels.Transform{
-		levels.Fatal: func(x logger.Logger) logger.Logger { return exitLogger(x, cfg.Exit, cfg.ExitCode) },
-		levels.Panic: func(x logger.Logger) logger.Logger { return panicLogger(x, cfg.Panic) },
+		levels.Fatal: func(x logger.Logger) logger.Logger {
+			return exitLogger(x, cfg.Exit, cfg.ExitCode)
+		},
+		levels.Panic: func(x logger.Logger) logger.Logger {
+			return panicLogger(x, cfg.Panic)
+		},
 	}
 	if cfg.Sink.Stream != nil {
-		return LeveledStreamer(ctx, cfg.Level, cfg.Sink.Stream, cfg.Marshaler, t, cfg.Decorators...), lastOpt
+		return LeveledStreamer(
+			ctx,
+			cfg.Level,
+			cfg.Sink.Stream,
+			cfg.Marshaler,
+			t,
+			cfg.CallTracking,
+			cfg.Decorators...), lastOpt
 	}
-	return LeveledLogger(ctx, cfg.Level, cfg.Sink.Logger, t), lastOpt
+	return LeveledLogger(
+		ctx,
+		cfg.Level,
+		cfg.Sink.Logger,
+		t,
+		cfg.CallTracking), lastOpt
 }
 
 func Level(level levels.Level) Option {
@@ -300,5 +350,13 @@ func Decorate(d ...io.Decorator) Option {
 			c.Decorators = old
 			return Decorate(d...)
 		})
+	}
+}
+
+func CallTracking(t bool) Option {
+	return func(c *Config) Option {
+		old := c.CallTracking
+		c.CallTracking = t
+		return CallTracking(old)
 	}
 }
