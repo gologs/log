@@ -130,7 +130,7 @@ func Example_withCustomMarshaler() {
 		config.Stream(stream),
 		config.Marshaler(marshaler),
 	)
-	log.Infof("some log event", "majorVersion", 1, "module", "storage", "owner", "alice")
+	log.Logf("some log event", "majorVersion", 1, "module", "storage", "owner", "alice")
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
