@@ -35,6 +35,14 @@ func (f LoggerFunc) Logf(c context.Context, msg string, args ...interface{}) {
 
 func Null() Logger { return LoggerFunc(func(_ context.Context, _ string, _ ...interface{}) {}) }
 
+// Tee returns a Logger that copies log events to both `logger` and `dup`.
+func Tee(logger, dup Logger) Logger {
+	return LoggerFunc(func(c context.Context, m string, a ...interface{}) {
+		logger.Logf(c, m, a...)
+		dup.Logf(c, m, a...)
+	})
+}
+
 // IgnoreErrors is a convenience func to improve readability of func invocations
 // that accept an error promise.
 func IgnoreErrors() chan<- error {
