@@ -44,7 +44,7 @@ func IgnoreErrors() chan<- error {
 // WithStream generates a Logger that writes log events to the given
 // io.Stream using the given `op` marshaler. It is expected that a marshaler
 // will invoke EOM after processing each log event.
-func WithStream(s io.Stream, errCh chan<- error, op io.StreamOp) Logger {
+func WithStream(s io.Stream, op io.StreamOp, errCh chan<- error) Logger {
 	return LoggerFunc(func(ctx context.Context, m string, a ...interface{}) {
 		if err := op(ctx, s, m, a...); err != nil && errCh != nil {
 			// attempt to send back errors to the caller

@@ -97,8 +97,8 @@ func LeveledStreamer(
 
 	logs := logger.WithStream(
 		s,
-		logger.IgnoreErrors(),
 		io.Decorators(decorators).Decorate(marshaler),
+		logger.IgnoreErrors(),
 	)
 	return leveledLogger(ctx, min, logs, t, callTracking)
 }
