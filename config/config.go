@@ -30,7 +30,7 @@ import (
 type lockGuard struct{ sync.Mutex }
 
 func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
-	return x, logger.LoggerFunc(func(c context.Context, m string, a ...interface{}) {
+	return x, logger.Func(func(c context.Context, m string, a ...interface{}) {
 		g.Lock()
 		defer g.Unlock()
 		logs.Logf(c, m, a...)
@@ -168,14 +168,14 @@ func safePanic(fpanic func(string)) func(string) {
 }
 
 func exitLogger(logs logger.Logger, fexit func(int), code int) logger.Logger {
-	return logger.LoggerFunc(func(c context.Context, m string, a ...interface{}) {
+	return logger.Func(func(c context.Context, m string, a ...interface{}) {
 		defer safeExit(fexit)(code)
 		logs.Logf(c, m, a...)
 	})
 }
 
 func panicLogger(logs logger.Logger, fpanic func(string)) logger.Logger {
-	return logger.LoggerFunc(func(c context.Context, m string, a ...interface{}) {
+	return logger.Func(func(c context.Context, m string, a ...interface{}) {
 		defer safePanic(fpanic)(m)
 		logs.Logf(c, m, a...)
 	})

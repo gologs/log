@@ -46,7 +46,7 @@ func FromContext(ctx context.Context) (Caller, bool) {
 }
 
 func Logger(calldepth int, logs logger.Logger) logger.Logger {
-	return logger.LoggerFunc(func(c context.Context, msg string, args ...interface{}) {
+	return logger.Func(func(c context.Context, msg string, args ...interface{}) {
 		_, file, line, ok := runtime.Caller(calldepth)
 		if !ok {
 			file, line = "???", 0

@@ -31,7 +31,7 @@ import (
 func Example_withCustomLogger() {
 	var (
 		logs    = []string{}
-		flogger = logger.LoggerFunc(func(_ context.Context, m string, a ...interface{}) {
+		flogger = logger.Func(func(_ context.Context, m string, a ...interface{}) {
 			logs = append(logs, fmt.Sprintf(m, a...))
 		})
 	)

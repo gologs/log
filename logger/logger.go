@@ -27,17 +27,17 @@ type Logger interface {
 	Logf(context.Context, string, ...interface{})
 }
 
-type LoggerFunc func(context.Context, string, ...interface{})
+type Func func(context.Context, string, ...interface{})
 
-func (f LoggerFunc) Logf(c context.Context, msg string, args ...interface{}) {
+func (f Func) Logf(c context.Context, msg string, args ...interface{}) {
 	f(c, msg, args...)
 }
 
-func Null() Logger { return LoggerFunc(func(_ context.Context, _ string, _ ...interface{}) {}) }
+func Null() Logger { return Func(func(_ context.Context, _ string, _ ...interface{}) {}) }
 
 // Tee returns a Logger that copies log events to both `logger` and `dup`.
 func Tee(logger, dup Logger) Logger {
-	return LoggerFunc(func(c context.Context, m string, a ...interface{}) {
+	return Func(func(c context.Context, m string, a ...interface{}) {
 		logger.Logf(c, m, a...)
 		dup.Logf(c, m, a...)
 	})
@@ -53,7 +53,7 @@ func IgnoreErrors() chan<- error {
 // io.Stream using the given `op` marshaler. It is expected that a marshaler
 // will invoke EOM after processing each log event.
 func WithStream(s io.Stream, op io.StreamOp, errCh chan<- error) Logger {
-	return LoggerFunc(func(ctx context.Context, m string, a ...interface{}) {
+	return Func(func(ctx context.Context, m string, a ...interface{}) {
 		if err := op(ctx, s, m, a...); err != nil && errCh != nil {
 			// attempt to send back errors to the caller
 			select {
@@ -73,7 +73,7 @@ func Context(d context.Decorator) Decorator {
 		return NoDecorator()
 	}
 	return func(logger Logger) Logger {
-		return LoggerFunc(func(c context.Context, m string, a ...interface{}) {
+		return Func(func(c context.Context, m string, a ...interface{}) {
 			logger.Logf(d(c), m, a...)
 		})
 	}
@@ -96,7 +96,7 @@ func WriterLogger(w stdio.Writer) Logger {
 		// TODO(jdef) should better handle EOM's by checking for LF
 	)
 	s := &ignoreEOM{w}
-	return LoggerFunc(func(m string, a ...interface{}) {
+	return Func(func(m string, a ...interface{}) {
 		// drop errors produced here
 		op(ctx, s, m, a...)
 	})
@@ -106,7 +106,7 @@ func WriterLogger(w stdio.Writer) Logger {
 // SystemLogger generates a Logger that logs to the golang Print family
 // of functions.
 func SystemLogger() Logger {
-	return LoggerFunc(func(_ context.Context, m string, a ...interface{}) {
+	return Func(func(_ context.Context, m string, a ...interface{}) {
 		if len(a) > 0 {
 			if m == "" {
 				log.Println(a...)
@@ -126,7 +126,7 @@ type Cancel interface {
 }
 
 func WithContext(ctx context.Context, logger Cancel) Logger {
-	return LoggerFunc(func(msg string, args ...interface{}) {
+	return Func(func(msg string, args ...interface{}) {
 		ch := make(chan struct{})
 		go func() {
 			defer close(ch)
