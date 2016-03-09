@@ -80,6 +80,7 @@ func LeveledStreamer(
 	marshaler io.StreamOp,
 	t levels.Transform,
 	callTracking bool,
+	errorSink chan<- error,
 	decorators ...io.Decorator,
 ) levels.Interface {
 	if ctx == nil {
@@ -94,11 +95,14 @@ func LeveledStreamer(
 	if len(decorators) == 0 {
 		decorators = io.Decorators{levels.Annotator()}
 	}
+	if errorSink == nil {
+		errorSink = logger.IgnoreErrors()
+	}
 
 	logs := logger.WithStream(
 		s,
 		io.Decorators(decorators).Decorate(marshaler),
-		logger.IgnoreErrors(),
+		errorSink,
 	)
 	return leveledLogger(ctx, min, logs, t, callTracking)
 }
@@ -209,6 +213,11 @@ type Config struct {
 	// Marshals a log event to an underlying Sink.Stream, defaults to io.Printf.
 	// All marshalers should invoke Stream.EOM after processing each log event.
 	Marshaler io.StreamOp
+
+	// ErrorSink receives errors as they occur upon processing streaming events
+	// (only applies when using Sink.Stream, not for Sink.Logger).
+	// Defaults to logger.IgnoreErrors().
+	ErrorSink chan<- error
 }
 
 // NoPanic generates a noop panic func
@@ -268,6 +277,7 @@ func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interf
 			cfg.Marshaler,
 			t,
 			cfg.CallTracking,
+			cfg.ErrorSink,
 			cfg.Decorators...), lastOpt
 	}
 	return LeveledLogger(
@@ -358,5 +368,13 @@ func CallTracking(t bool) Option {
 		old := c.CallTracking
 		c.CallTracking = t
 		return CallTracking(old)
+	}
+}
+
+func ErrorSink(es chan<- error) Option {
+	return func(c *Config) Option {
+		old := c.ErrorSink
+		c.ErrorSink = es
+		return ErrorSink(old)
 	}
 }
