@@ -19,6 +19,7 @@ package log_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/jdef/log"
 	"github.com/jdef/log/caller"
@@ -102,7 +103,10 @@ func Example_withCustomMarshaler() {
 		marshaler = func(ctx context.Context, w io.Stream, m string, a ...interface{}) (err error) {
 			caller, ok := caller.FromContext(ctx)
 			if ok {
-				a = append(a, "file", filepath.Base(caller.File), "line", caller.Line)
+				a = append(a,
+					"file", filepath.Base(caller.File),
+					"line", caller.Line,
+					"func", caller.FuncName[strings.LastIndexByte(caller.FuncName, byte('.'))+1:])
 			}
 			fmt.Fprint(w, m)
 			w.Write([]byte("{"))
@@ -130,7 +134,7 @@ func Example_withCustomMarshaler() {
 		config.Stream(stream),
 		config.Marshaler(marshaler),
 	)
-	log.Logf("some log event", "majorVersion", 1, "module", "storage", "owner", "alice")
+	log.Logf("some log event", "majorVersion", 1, "module", "storage")
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
@@ -140,5 +144,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// Isome log event{majorVersion=1,module=storage,owner=alice,file=log_test.go,line=133}
+	// Isome log event{majorVersion=1,module=storage,file=log_test.go,line=137,func=Example_withCustomMarshaler}
 }

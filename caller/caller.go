@@ -25,8 +25,9 @@ import (
 
 type (
 	Caller struct {
-		File string
-		Line int
+		File     string
+		Line     int
+		FuncName string
 	}
 
 	key int
@@ -36,8 +37,12 @@ const (
 	callerKey key = iota
 )
 
-func NewContext(ctx context.Context, file string, line int) context.Context {
-	return context.WithValue(ctx, callerKey, Caller{File: file, Line: line})
+func NewContext(ctx context.Context, file string, line int, funcName string) context.Context {
+	return context.WithValue(ctx, callerKey, Caller{
+		File:     file,
+		Line:     line,
+		FuncName: funcName,
+	})
 }
 
 func FromContext(ctx context.Context) (Caller, bool) {
@@ -47,10 +52,16 @@ func FromContext(ctx context.Context) (Caller, bool) {
 
 func Logger(calldepth int, logs logger.Logger) logger.Logger {
 	return logger.Func(func(c context.Context, msg string, args ...interface{}) {
-		_, file, line, ok := runtime.Caller(calldepth)
+		var (
+			funcName           = "???"
+			pc, file, line, ok = runtime.Caller(calldepth)
+		)
 		if !ok {
 			file, line = "???", 0
+		} else if f := runtime.FuncForPC(pc); f != nil {
+			funcName = f.Name()
 		}
-		logs.Logf(NewContext(c, file, line), msg, args...)
+
+		logs.Logf(NewContext(c, file, line, funcName), msg, args...)
 	})
 }
