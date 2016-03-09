@@ -42,9 +42,14 @@ var ns = &nullStream{}
 // Null returns a stream that swallows all output (like /dev/null)
 func Null() Stream { return ns }
 
+type Buffer interface {
+	io.Reader
+	String() string
+}
+
 type BufferedStream struct {
 	bytes.Buffer
-	EOMFunc func(*bytes.Buffer, error)
+	EOMFunc func(Buffer, error)
 }
 
 func (bs *BufferedStream) EOM(err error) {
@@ -55,7 +60,7 @@ func (bs *BufferedStream) EOM(err error) {
 }
 
 var stdlog = &BufferedStream{
-	EOMFunc: func(buf *bytes.Buffer, _ error) {
+	EOMFunc: func(buf Buffer, _ error) {
 		// ignore errors
 		log.Output(2, buf.String())
 	},

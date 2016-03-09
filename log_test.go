@@ -17,7 +17,6 @@ limitations under the License.
 package log_test
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 
@@ -57,7 +56,7 @@ func Example_withCustomStream() {
 	var (
 		logs   = []string{}
 		stream = &io.BufferedStream{
-			EOMFunc: func(b *bytes.Buffer, _ error) {
+			EOMFunc: func(b io.Buffer, _ error) {
 				logs = append(logs, b.String())
 			},
 		}
@@ -95,7 +94,7 @@ func Example_withCustomMarshaler() {
 	var (
 		logs   = []string{}
 		stream = &io.BufferedStream{
-			EOMFunc: func(b *bytes.Buffer, _ error) {
+			EOMFunc: func(b io.Buffer, _ error) {
 				logs = append(logs, b.String())
 			},
 		}
@@ -141,5 +140,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// Isome log event{majorVersion=1,module=storage,owner=alice,file=log_test.go,line=134}
+	// Isome log event{majorVersion=1,module=storage,owner=alice,file=log_test.go,line=133}
 }
