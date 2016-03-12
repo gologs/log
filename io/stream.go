@@ -108,9 +108,9 @@ func (bt *byteTracker) Write(buf []byte) (int, error) {
 
 // Printf returns a StreamOp that uses fmt Print and Printf to format
 // log writes to streams. An EOM signal is sent after every log message.
-func Printf(ctx context.Context, d ...Decorator) StreamOp {
+func Printf(d ...Decorator) StreamOp {
 	return Decorators(d).Decorate(StreamOp(
-		func(ctx context.Context, w Stream, m string, a ...interface{}) (err error) {
+		func(_ context.Context, w Stream, m string, a ...interface{}) (err error) {
 			if m != "" {
 				_, err = fmt.Fprintf(w, m, a...)
 			} else {

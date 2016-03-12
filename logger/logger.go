@@ -35,11 +35,12 @@ func (f Func) Logf(c context.Context, msg string, args ...interface{}) {
 
 func Null() Logger { return Func(func(_ context.Context, _ string, _ ...interface{}) {}) }
 
-// Tee returns a Logger that copies log events to both `logger` and `dup`.
-func Tee(logger, dup Logger) Logger {
+// Multi returns a Logger that copies log events all those given as arguments
+func Multi(loggers ...Logger) Logger {
 	return Func(func(c context.Context, m string, a ...interface{}) {
-		logger.Logf(c, m, a...)
-		dup.Logf(c, m, a...)
+		for _, logs := range loggers {
+			logs.Logf(c, m, a...)
+		}
 	})
 }
 

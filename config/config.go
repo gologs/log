@@ -94,7 +94,7 @@ func LeveledStreamer(
 		ctx = context.None()
 	}
 	if marshaler == nil {
-		marshaler = io.Printf(ctx)
+		marshaler = io.Printf()
 	}
 	if s == nil {
 		s = io.SystemStream()
