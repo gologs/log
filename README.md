@@ -1,4 +1,5 @@
 [![GoDoc] (https://godoc.org/github.com/gologs/log?status.png)](https://godoc.org/github.com/gologs/log)
+[![Circle CI](https://circleci.com/gh/gologs/log.svg?style=svg)](https://circleci.com/gh/gologs/log)
 
 ## Status
 
