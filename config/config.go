@@ -27,6 +27,13 @@ import (
 	"github.com/gologs/log/logger"
 )
 
+// DefaultCallerDepth is appropriate when invoking, for example Infof, on the glogs/log
+// package directly.
+// NOTE: the call-depth specified (4) has been carefully selected; if any transforms are
+// introduced that would further wrap the logger that we consume below then the call-depth
+// will need to be increased accordingly.
+const DefaultCallerDepth = 4
+
 type lockGuard struct{ sync.Mutex }
 
 func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
@@ -79,7 +86,7 @@ func LeveledStreamer(
 	s io.Stream,
 	marshaler io.StreamOp,
 	t levels.Transform,
-	callTracking bool,
+	callTracking caller.Tracking,
 	errorSink chan<- error,
 	decorators ...io.Decorator,
 ) levels.Interface {
@@ -112,7 +119,7 @@ func LeveledLogger(
 	min levels.Level,
 	logs logger.Logger,
 	t levels.Transform,
-	callTracking bool,
+	callTracking caller.Tracking,
 ) levels.Interface {
 	if ctx == nil {
 		ctx = context.None()
@@ -128,7 +135,7 @@ func leveledLogger(
 	min levels.Level,
 	logs logger.Logger,
 	t levels.Transform,
-	callTracking bool,
+	callTracking caller.Tracking,
 ) levels.Interface {
 	var (
 		logAt = func(level levels.Level) logger.Logger {
@@ -137,19 +144,16 @@ func leveledLogger(
 		g    lockGuard
 		tops = []levels.TransformOp{t.Apply, g.Apply}
 	)
-	if callTracking {
+	if callTracking.Enabled {
 		tops = append(tops,
 			// inject caller info into context (file/line); this is probably the best place to do it
 			// since we can predict the call-depth here and it will work for both Stream- and Logger-
 			// based approaches.
-			// NOTE: the call-depth specified (4) has been carefully selected; if any transforms are
-			// introduced that would further wrap the logger that we consume below then the call-depth
-			// will need to be increased accordingly.
 			// NOTE: care has been taken to avoid locking the guard Mutex until absolutely necessary.
 			// For example, the log level threshold filter and caller injection both execute *before*
 			// the mutex is locked (pulling the call stack run the runtime is expensive).
 			levels.TransformOp(func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
-				return x, caller.Logger(4, logs)
+				return x, callTracking.Logger(logs)
 			}),
 		)
 	}
@@ -196,7 +200,7 @@ type Config struct {
 
 	// CallTracking, when true, queries runtime for the call stack to populate Caller
 	// in the logging Context.
-	CallTracking bool
+	CallTracking caller.Tracking
 
 	// ExitCode is passed to exit functions that are invoked upon calls to Fatalf
 	ExitCode int
@@ -231,9 +235,12 @@ var (
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
 	DefaultConfig = Config{
-		Level:        levels.Info, // Level defaults to levels.Info
-		ExitCode:     1,           // ExitCode defaults to 1
-		CallTracking: true,
+		Level:    levels.Info, // Level defaults to levels.Info
+		ExitCode: 1,           // ExitCode defaults to 1
+		CallTracking: caller.Tracking{
+			Enabled: true,
+			Depth:   DefaultCallerDepth,
+		},
 	}
 
 	// Default logs everything "info" and higher ("warn", "error", ...) to SystemLogger
@@ -363,7 +370,7 @@ func Decorate(d ...io.Decorator) Option {
 	}
 }
 
-func CallTracking(t bool) Option {
+func CallTracking(t caller.Tracking) Option {
 	return func(c *Config) Option {
 		old := c.CallTracking
 		c.CallTracking = t

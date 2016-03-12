@@ -30,6 +30,11 @@ type (
 		FuncName string
 	}
 
+	Tracking struct {
+		Enabled bool
+		Depth   int
+	}
+
 	key int
 )
 
@@ -64,4 +69,11 @@ func Logger(calldepth int, logs logger.Logger) logger.Logger {
 
 		logs.Logf(NewContext(c, file, line, funcName), msg, args...)
 	})
+}
+
+func (t Tracking) Logger(logs logger.Logger) logger.Logger {
+	if t.Enabled {
+		return Logger(t.Depth, logs)
+	}
+	return logs
 }
