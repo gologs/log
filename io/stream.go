@@ -111,7 +111,7 @@ func (bt *byteTracker) Write(buf []byte) (int, error) {
 func Printf(ctx context.Context, d ...Decorator) StreamOp {
 	return Decorators(d).Decorate(StreamOp(
 		func(ctx context.Context, w Stream, m string, a ...interface{}) (err error) {
-			if len(a) > 0 && m != "" {
+			if m != "" {
 				_, err = fmt.Fprintf(w, m, a...)
 			} else {
 				_, err = fmt.Fprint(w, a...)

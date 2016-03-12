@@ -107,14 +107,10 @@ func WriterLogger(w stdio.Writer) Logger {
 // of functions.
 func SystemLogger() Logger {
 	return Func(func(_ context.Context, m string, a ...interface{}) {
-		if len(a) > 0 {
-			if m == "" {
-				log.Println(a...)
-			} else {
-				log.Printf(m, a...)
-			}
+		if m == "" {
+			log.Println(a...)
 		} else {
-			log.Println(m)
+			log.Printf(m, a...)
 		}
 	})
 }
