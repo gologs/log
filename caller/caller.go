@@ -24,12 +24,14 @@ import (
 )
 
 type (
+	// Caller identifies the file, line, and function that generated a log event.
 	Caller struct {
 		File     string
 		Line     int
 		FuncName string
 	}
 
+	// Tracking enables log decorators to inject Caller information into logging Context.
 	Tracking struct {
 		Enabled bool
 		Depth   int
@@ -42,6 +44,7 @@ const (
 	callerKey key = iota
 )
 
+// NewContext generates a Context annotated with Caller
 func NewContext(ctx context.Context, file string, line int, funcName string) context.Context {
 	return context.WithValue(ctx, callerKey, Caller{
 		File:     file,
@@ -50,11 +53,13 @@ func NewContext(ctx context.Context, file string, line int, funcName string) con
 	})
 }
 
+// FromContext extracts a Caller from the given Context
 func FromContext(ctx context.Context) (Caller, bool) {
 	x, ok := ctx.Value(callerKey).(Caller)
 	return x, ok
 }
 
+// Logger decorates the given logger by injecting Caller into the logging Context
 func Logger(calldepth int, logs logger.Logger) logger.Logger {
 	return logger.Func(func(c context.Context, msg string, args ...interface{}) {
 		var (
@@ -71,6 +76,9 @@ func Logger(calldepth int, logs logger.Logger) logger.Logger {
 	})
 }
 
+// Logger generates a (possibly) decorated variant of the given logger, depending on
+// the tracking configuration: if tracking is disabled then `logs` is returned unchanged.
+// Otherwise the returned logger will inject Caller into the Context for every log message.
 func (t Tracking) Logger(logs logger.Logger) logger.Logger {
 	if t.Enabled {
 		return Logger(t.Depth, logs)

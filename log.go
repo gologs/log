@@ -20,12 +20,44 @@ import (
 	"github.com/gologs/log/config"
 )
 
+// Debugf lots at levels.Debug
 func Debugf(msg string, args ...interface{}) { config.Default.Debugf(msg, args...) }
-func Infof(msg string, args ...interface{})  { config.Default.Infof(msg, args...) }
-func Warnf(msg string, args ...interface{})  { config.Default.Warnf(msg, args...) }
+
+// Debug lots at levels.Debug
+func Debug(args ...interface{}) { config.Default.Debugf("", args...) }
+
+// Infof lots at levels.Info
+func Infof(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
+
+// Info lots at levels.Info
+func Info(args ...interface{}) { config.Default.Infof("", args...) }
+
+// Warnf lots at levels.Warn
+func Warnf(msg string, args ...interface{}) { config.Default.Warnf(msg, args...) }
+
+// Warn lots at levels.Warn
+func Warn(args ...interface{}) { config.Default.Warnf("", args...) }
+
+// Errorf lots at levels.Error
 func Errorf(msg string, args ...interface{}) { config.Default.Errorf(msg, args...) }
+
+// Error lots at levels.Error
+func Error(args ...interface{}) { config.Default.Errorf("", args...) } // govet
+
+// Fatalf lots at levels.Fatal
 func Fatalf(msg string, args ...interface{}) { config.Default.Fatalf(msg, args...) }
+
+// Fatal lots at levels.Fatal
+func Fatal(args ...interface{}) { config.Default.Fatalf("", args...) } // govet
+
+// Panicf lots at levels.Panic
 func Panicf(msg string, args ...interface{}) { config.Default.Panicf(msg, args...) }
+
+// Panic lots at levels.Panic
+func Panic(args ...interface{}) { config.Default.Panicf("", args...) } // govet
 
 // Logf is an alias for Infof
 func Logf(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
+
+// Log is an alias for Info
+func Log(args ...interface{}) { config.Default.Infof("", args...) }

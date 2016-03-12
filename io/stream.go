@@ -25,8 +25,11 @@ import (
 	"github.com/gologs/log/context"
 )
 
+// Stream writes serialized log data ... somewhere.
 type Stream interface {
 	io.Writer
+	// EOM should be invoked by the final "marshaler" stream op after each log message
+	// has been written out. Such calls serve to frame log events.
 	EOM(error)
 }
 
@@ -39,19 +42,24 @@ func (ns *nullStream) Write(b []byte) (int, error) {
 
 var ns = &nullStream{}
 
-// Null returns a stream that swallows all output (like /dev/null)
+// Null returns a stream that swallows all output, akin to /dev/null
 func Null() Stream { return ns }
 
+// Buffer represents a log message that may be, or has been, serialized to a Stream
 type Buffer interface {
 	io.Reader
-	String() string
+	fmt.Stringer
 }
 
+// BufferedStream is a Stream implementation that buffers all writes in between calls to EOM.
 type BufferedStream struct {
 	bytes.Buffer
+	// EOMFunc (optional) is invoked upon calls to EOM and is given the full contents of buffer.
+	// References to the buffer are no longer valid upon returning from EOMFunc.
 	EOMFunc func(Buffer, error)
 }
 
+// EOM implements Stream
 func (bs *BufferedStream) EOM(err error) {
 	defer bs.Reset()
 	if bs.EOMFunc != nil {
@@ -62,26 +70,38 @@ func (bs *BufferedStream) EOM(err error) {
 var stdlog = &BufferedStream{
 	EOMFunc: func(buf Buffer, _ error) {
 		// ignore errors
-		log.Output(2, buf.String())
+		// TODO(jdef) probably need to parameterize the call depth here
+		_ = log.Output(2, buf.String())
 	},
 }
 
+// SystemStream returns a buffered Stream that logs output via the standard "log" package.
 func SystemStream() Stream {
 	return stdlog
 }
 
+// StreamOp functions write log messages to a Stream
 type StreamOp func(context.Context, Stream, string, ...interface{}) error
 
 var nullOp = func(_ context.Context, _ Stream, _ string, _ ...interface{}) (_ error) { return }
 
+// NullOp returns a stream op that discards all log messages, akin to /dev/null
 func NullOp() StreamOp { return nullOp }
 
+// Decorator functions typically return a StreamOp that somehow augments the functionality
+// of the original StreamOp
 type Decorator func(StreamOp) StreamOp
 
+// NoDecorator returns a generator that does not modify the original StreamOp
 func NoDecorator() Decorator { return func(x StreamOp) StreamOp { return x } }
 
+// Decorators is a convenience type that make it simpler to apply multiple Decorator functions
+// to a StreamOp
 type Decorators []Decorator
 
+// Decorate applies all of the decorators to the given StreamOp, in order. This means that the
+// last decorator in the collection will be the first decorator invoked upon calls to the returned
+// StreamOp instance.
 func (dd Decorators) Decorate(op StreamOp) StreamOp {
 	for _, d := range dd {
 		if d != nil {
@@ -106,9 +126,9 @@ func (bt *byteTracker) Write(buf []byte) (int, error) {
 }
 */
 
-// Printf returns a StreamOp that uses fmt Print and Printf to format
+// Format returns a StreamOp that uses fmt Print and Printf to format
 // log writes to streams. An EOM signal is sent after every log message.
-func Printf(d ...Decorator) StreamOp {
+func Format(d ...Decorator) StreamOp {
 	return Decorators(d).Decorate(StreamOp(
 		func(_ context.Context, w Stream, m string, a ...interface{}) (err error) {
 			if m != "" {

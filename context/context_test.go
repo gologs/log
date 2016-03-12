@@ -23,7 +23,7 @@ import (
 )
 
 func Test_WithValue(t *testing.T) {
-	ctx := None()
+	ctx := TODO()
 
 	foo, ok := ctx.Value("foo").(string)
 	if ok {

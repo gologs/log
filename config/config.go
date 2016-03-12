@@ -80,6 +80,7 @@ func GenerateLevelLoggers(
 		m[levels.Panic]
 }
 
+// LeveledStreamer generates a leveled logging interface for the given io.Stream oriented configuration.
 func LeveledStreamer(
 	ctx context.Context,
 	min levels.Level,
@@ -91,10 +92,10 @@ func LeveledStreamer(
 	decorators ...io.Decorator,
 ) levels.Interface {
 	if ctx == nil {
-		ctx = context.None()
+		ctx = context.Background()
 	}
 	if marshaler == nil {
-		marshaler = io.Printf()
+		marshaler = io.Format()
 	}
 	if s == nil {
 		s = io.SystemStream()
@@ -114,6 +115,7 @@ func LeveledStreamer(
 	return leveledLogger(ctx, min, logs, t, callTracking)
 }
 
+// LeveledLogger generates a leveled logging interface for the given logger.Logger oriented configuration.
 func LeveledLogger(
 	ctx context.Context,
 	min levels.Level,
@@ -122,7 +124,7 @@ func LeveledLogger(
 	callTracking caller.Tracking,
 ) levels.Interface {
 	if ctx == nil {
-		ctx = context.None()
+		ctx = context.Background()
 	}
 	if logs == nil {
 		logs = logger.SystemLogger()
@@ -189,14 +191,22 @@ func panicLogger(logs logger.Logger, fpanic func(string)) logger.Logger {
 	})
 }
 
+// StreamOrLogger prescribes the destination for log messages. It is expected that clients
+// set either Stream or Logger, but not both. If both are set then the factory functions of
+// this package prefer the Stream instance.
 type StreamOrLogger struct {
 	io.Stream
 	logger.Logger
 }
 
+// Config is a complete logging configuration. Fields may be tweaked manually, or by way
+// of functional Option funcs.
 type Config struct {
+	// Level is the minimum log threshold; messages below this level will be discarded
 	Level levels.Level
-	Sink  StreamOrLogger
+
+	// Sink is the destination for log events
+	Sink StreamOrLogger
 
 	// CallTracking, when true, queries runtime for the call stack to populate Caller
 	// in the logging Context.
@@ -234,6 +244,7 @@ var (
 	_ = &Config{Panic: NoPanic()} // NoPanic is a panic func generator
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
+	// DefaultConfig is used to generate the initial Default logger
 	DefaultConfig = Config{
 		Level:    levels.Info, // Level defaults to levels.Info
 		ExitCode: 1,           // ExitCode defaults to 1
@@ -243,7 +254,8 @@ var (
 		},
 	}
 
-	// Default logs everything "info" and higher ("warn", "error", ...) to SystemLogger
+	// Default is a logging instance constructed with default configuration:
+	// it logs everything "info" and higher ("warn", "error", ...) to logger.SystemLogger()
 	Default = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
 )
 
@@ -257,10 +269,13 @@ func NoOption() (opt Option) {
 	return
 }
 
+// With generates a logging interface using the specified functional Options with a
+// context.Background()
 func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
-	return cfg.WithContext(context.None(), opt...)
+	return cfg.WithContext(context.Background(), opt...)
 }
 
+// WithContext generates a logging interface using the specified Context and functional Options
 func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interface, Option) {
 	lastOpt := NoOption()
 	for _, o := range opt {
@@ -295,6 +310,7 @@ func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interf
 		cfg.CallTracking), lastOpt
 }
 
+// Level is a functional configuration Option that sets the minimum log level threshold.
 func Level(level levels.Level) Option {
 	return func(c *Config) Option {
 		old := c.Level
@@ -303,6 +319,7 @@ func Level(level levels.Level) Option {
 	}
 }
 
+// Sink is a functional configuration Option that sets the destination for log messages.
 func Sink(x StreamOrLogger) Option {
 	return func(c *Config) Option {
 		old := c.Sink
@@ -311,22 +328,31 @@ func Sink(x StreamOrLogger) Option {
 	}
 }
 
+// Stream is a functional configuration Option that establishes the given io.Stream as the
+// destination for log messages.
 func Stream(stream io.Stream) Option {
 	return Sink(StreamOrLogger{Stream: stream})
 }
 
+// Logger is a functional configuration Option that establishes the given logger.Logger as the
+// destination for log messages.
 func Logger(logs logger.Logger) Option {
 	return Sink(StreamOrLogger{Logger: logs})
 }
 
-func Exit(f func(int)) Option {
+// OnExit is a functional configuration Option that defines the behavior of Exitf after a
+// log message has been delivered to the sink.
+func OnExit(f func(int)) Option {
 	return func(c *Config) Option {
 		old := c.Exit
 		c.Exit = f
-		return Exit(old)
+		return OnExit(old)
 	}
 }
 
+// ExitCode is a functional configuration Option that defines the preferred process exit code
+// generated upon process termination via calls to Exitf. Implementations of exit funcs (set via
+// OnExit) should report this value.
 func ExitCode(code int) Option {
 	return func(c *Config) Option {
 		old := c.ExitCode
@@ -335,14 +361,17 @@ func ExitCode(code int) Option {
 	}
 }
 
-func Panic(f func(msg string)) Option {
+// OnPanic is a functional configuration Option that defines the behavior of Panicf after a
+// log message has been delivered to the sink.
+func OnPanic(f func(msg string)) Option {
 	return func(c *Config) Option {
 		old := c.Panic
 		c.Panic = f
-		return Panic(old)
+		return OnPanic(old)
 	}
 }
 
+// Marshaler is a functional configuration Option that serializes log messages to an io.Stream.
 func Marshaler(m io.StreamOp) Option {
 	return func(c *Config) Option {
 		old := c.Marshaler
@@ -370,6 +399,8 @@ func Decorate(d ...io.Decorator) Option {
 	}
 }
 
+// CallTracking returns a functional Option that determines whether logging Context is annotated
+// with a caller.Caller, and if so the "caller depth" to use when crawling the runtime call stack.
 func CallTracking(t caller.Tracking) Option {
 	return func(c *Config) Option {
 		old := c.CallTracking
@@ -378,6 +409,8 @@ func CallTracking(t caller.Tracking) Option {
 	}
 }
 
+// ErrorSink returns a functional Option that establishes a consumer of errors generated by the
+// logging subsystem.
 func ErrorSink(es chan<- error) Option {
 	return func(c *Config) Option {
 		old := c.ErrorSink

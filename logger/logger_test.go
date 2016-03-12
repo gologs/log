@@ -55,7 +55,7 @@ func TestMulti(t *testing.T) {
 
 func TestWithStream(t *testing.T) {
 	var (
-		marshaler = io.Printf()
+		marshaler = io.Format()
 		output    string
 		buf       = &io.BufferedStream{EOMFunc: func(b io.Buffer, _ error) { output = b.String() }}
 		logs      = WithStream(buf, marshaler, IgnoreErrors())
@@ -80,7 +80,7 @@ func TestContext(t *testing.T) {
 		})
 		logs = Context(d)(captureFoo)
 	)
-	logs.Logf(context.None(), "")
+	logs.Logf(context.TODO(), "")
 	if foo != "bar" {
 		t.Errorf("expected bar instead of %q", foo)
 	}
@@ -103,7 +103,7 @@ func TestWithStream_WithError(t *testing.T) {
 		errCh = make(chan error, 1)
 		logs  = WithStream(buf, marshaler, errCh)
 	)
-	logs.Logf(context.None(), "foo") // can't use plain "nil" context if you want error handling
+	logs.Logf(context.TODO(), "foo") // can't use plain "nil" context if you want error handling
 	if output != "" {
 		t.Errorf("expected empty output instead of %q", output)
 	}

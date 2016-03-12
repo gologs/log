@@ -65,8 +65,8 @@ func Example_withCustomStream() {
 
 	// swap out the default logger
 	config.Default, _ = config.DefaultConfig.With(
-		config.Panic(config.NoPanic()),
-		config.Exit(config.NoExit()),
+		config.OnPanic(config.NoPanic()),
+		config.OnExit(config.NoExit()),
 		config.Stream(stream),
 	)
 	log.Debugf("I can count 1 2 %d", 3)
@@ -109,19 +109,19 @@ func Example_withCustomMarshaler() {
 					"func", caller.FuncName[strings.LastIndexByte(caller.FuncName, byte('.'))+1:])
 			}
 			fmt.Fprint(w, m)
-			w.Write([]byte("{"))
+			_, _ = w.Write([]byte("{"))
 			if len(a) > 0 {
 				for i := 0; i+1 < len(a); i++ {
 					if i > 0 {
-						w.Write([]byte(","))
+						_, _ = w.Write([]byte(","))
 					}
 					fmt.Fprint(w, a[i])
-					w.Write([]byte("="))
+					_, _ = w.Write([]byte("="))
 					i++
 					fmt.Fprint(w, a[i])
 				}
 			}
-			w.Write([]byte("}"))
+			_, _ = w.Write([]byte("}"))
 			w.EOM(nil)
 			return nil
 		}
@@ -129,12 +129,12 @@ func Example_withCustomMarshaler() {
 
 	// swap out the default logger
 	config.Default, _ = config.DefaultConfig.With(
-		config.Panic(config.NoPanic()),
-		config.Exit(config.NoExit()),
+		config.OnPanic(config.NoPanic()),
+		config.OnExit(config.NoExit()),
 		config.Stream(stream),
 		config.Marshaler(marshaler),
 	)
-	log.Logf("some log event", "majorVersion", 1, "module", "storage")
+	log.Info("k%", "v", "majorVersion", 1, "module", "storage")
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
@@ -144,5 +144,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// Isome log event{majorVersion=1,module=storage,file=log_test.go,line=137,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=137,func=Example_withCustomMarshaler}
 }

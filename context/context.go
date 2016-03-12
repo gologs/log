@@ -16,9 +16,12 @@ limitations under the License.
 
 package context
 
+// Context is a subset of the golang.org/x/net/context Context interface
 type Context interface {
+	// Done returns a chan that closes to indicate termination of the calling context
 	Done() <-chan struct{}
-	Value(interface{}) interface{}
+	// Value returns the value for the registered key, or else nil
+	Value(key interface{}) interface{}
 }
 
 type nullContext <-chan struct{}
@@ -26,7 +29,12 @@ type nullContext <-chan struct{}
 func (c nullContext) Done() <-chan struct{}           { return nil }
 func (c nullContext) Value(_ interface{}) interface{} { return nil }
 
-func None() Context { return nullContext(nil) }
+// TODO exists to identify a place where better context is needed, but will be added later.
+// Easy to programatically check this way.
+func TODO() Context { return nullContext(nil) }
+
+// Background is a blank Context whose Done chan never closes.
+func Background() Context { return nullContext(nil) }
 
 // stateful naively implements Context
 type stateful struct {
@@ -47,4 +55,5 @@ func WithValue(c Context, key, value interface{}) Context {
 	return &stateful{c, key, value}
 }
 
+// Decorator functions usually return a modified version of the original Context
 type Decorator func(Context) Context

@@ -23,16 +23,20 @@ import (
 	"github.com/gologs/log/io"
 )
 
+// Logger is a generic logging interface.
 type Logger interface {
 	Logf(context.Context, string, ...interface{})
 }
 
+// Func adapts the Logger interface to functional form.
 type Func func(context.Context, string, ...interface{})
 
+// Logf simply invokes the receiver with the given args.
 func (f Func) Logf(c context.Context, msg string, args ...interface{}) {
 	f(c, msg, args...)
 }
 
+// Null discards all log events, akin to /dev/null
 func Null() Logger { return Func(func(_ context.Context, _ string, _ ...interface{}) {}) }
 
 // Multi returns a Logger that copies log events all those given as arguments
@@ -65,10 +69,13 @@ func WithStream(s io.Stream, op io.StreamOp, errCh chan<- error) Logger {
 	})
 }
 
+// Decorator functions typically generate a transformed version of the original Logger.
 type Decorator func(Logger) Logger
 
+// NoDecorator generates a Decorator that does not transform the original Logger.
 func NoDecorator() Decorator { return func(x Logger) Logger { return x } }
 
+// Context generates a Decorator that injects additional context by way `d`.
 func Context(d context.Decorator) Decorator {
 	if d == nil {
 		return NoDecorator()
