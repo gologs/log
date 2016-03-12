@@ -1,0 +1,38 @@
+machine:
+  pre:
+    - wget https://storage.googleapis.com/golang/go1.6.linux-amd64.tar.gz
+    - tar zxvf go1.6.linux-amd64.tar.gz
+  environment:
+    GOROOT: ${HOME}/go
+    PATH: ${GOROOT}/bin:${PATH}
+  post:
+    - go version
+
+dependencies:
+  pre:
+    - go version
+    - go get github.com/alecthomas/gometalinter
+    - go get github.com/axw/gocov/gocov # https://github.com/golang/go/issues/6909
+    - go get github.com/mattn/goveralls
+    - go get github.com/jstemmer/go-junit-report
+    - git describe --tags |tee VERSION
+    - sudo service mongodb stop
+    - sudo service rabbitmq-server stop
+    - sudo service couchdb stop
+    - sudo service zookeeper stop
+    - sudo service mysql stop
+    - sudo service postgresql stop
+    - sudo service redis-server stop
+  post:
+    - go install ./...
+    - go test -i ./...
+    - gometalinter --install
+
+test:
+  override:
+    - gometalinter --concurrency=6 --cyclo-over=12 --tests --deadline=300s ./...
+    - gocov test ./... -short -timeout=10m > $CIRCLE_ARTIFACTS/cov.json
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit && go test -v -timeout=10m ./... | go-junit-report > $CIRCLE_TEST_REPORTS/junit/alltests.xml
+    - go test -v -short -race -timeout=10m ./...
+  post:
+    - goveralls -service=circleci -gocovdata=$CIRCLE_ARTIFACTS/cov.json -repotoken=$COVERALLS_REPO_TOKEN || true
