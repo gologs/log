@@ -17,7 +17,7 @@ limitations under the License.
 package log
 
 import (
-	"github.com/jdef/log/config"
+	"github.com/gologs/log/config"
 )
 
 func Debugf(msg string, args ...interface{}) { config.Default.Debugf(msg, args...) }

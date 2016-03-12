@@ -19,8 +19,8 @@ package caller
 import (
 	"runtime"
 
-	"github.com/jdef/log/context"
-	"github.com/jdef/log/logger"
+	"github.com/gologs/log/context"
+	"github.com/gologs/log/logger"
 )
 
 type (

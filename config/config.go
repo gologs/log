@@ -20,11 +20,11 @@ import (
 	"os"
 	"sync"
 
-	"github.com/jdef/log/caller"
-	"github.com/jdef/log/context"
-	"github.com/jdef/log/io"
-	"github.com/jdef/log/levels"
-	"github.com/jdef/log/logger"
+	"github.com/gologs/log/caller"
+	"github.com/gologs/log/context"
+	"github.com/gologs/log/io"
+	"github.com/gologs/log/levels"
+	"github.com/gologs/log/logger"
 )
 
 type lockGuard struct{ sync.Mutex }

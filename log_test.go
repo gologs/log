@@ -21,12 +21,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jdef/log"
-	"github.com/jdef/log/caller"
-	"github.com/jdef/log/config"
-	"github.com/jdef/log/context"
-	"github.com/jdef/log/io"
-	"github.com/jdef/log/logger"
+	"github.com/gologs/log"
+	"github.com/gologs/log/caller"
+	"github.com/gologs/log/config"
+	"github.com/gologs/log/context"
+	"github.com/gologs/log/io"
+	"github.com/gologs/log/logger"
 )
 
 func Example_withCustomLogger() {

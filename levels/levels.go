@@ -17,9 +17,9 @@ limitations under the License.
 package levels
 
 import (
-	"github.com/jdef/log/context"
-	"github.com/jdef/log/io"
-	"github.com/jdef/log/logger"
+	"github.com/gologs/log/context"
+	"github.com/gologs/log/io"
+	"github.com/gologs/log/logger"
 )
 
 type Interface interface {

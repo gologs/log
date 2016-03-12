@@ -19,7 +19,7 @@ package context_test
 import (
 	"testing"
 
-	. "github.com/jdef/log/context"
+	. "github.com/gologs/log/context"
 )
 
 func Test_WithValue(t *testing.T) {

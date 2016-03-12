@@ -19,8 +19,8 @@ package logger
 import (
 	"log"
 
-	"github.com/jdef/log/context"
-	"github.com/jdef/log/io"
+	"github.com/gologs/log/context"
+	"github.com/gologs/log/io"
 )
 
 type Logger interface {

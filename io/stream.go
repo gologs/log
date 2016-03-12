@@ -22,7 +22,7 @@ import (
 	"io"
 	"log"
 
-	"github.com/jdef/log/context"
+	"github.com/gologs/log/context"
 )
 
 type Stream interface {
