@@ -47,12 +47,6 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 // Apply is a levels.TransformOp
 var _ = levels.TransformOp((&lockGuard{}).Apply)
 
-func addLevelToContext(x levels.Level) logger.Decorator {
-	return logger.Context(func(c context.Context) context.Context {
-		return x.NewContext(c)
-	})
-}
-
 // GenerateLevelLoggers builds a logger for every known log level; for each level
 // create a seed logger and apply chain funcs. The results may be fed directly into
 // levels.WithLoggers.
@@ -141,7 +135,7 @@ func leveledLogger(
 ) levels.Interface {
 	var (
 		logAt = func(level levels.Level) logger.Logger {
-			return addLevelToContext(level)(logs)
+			return logger.WithContext(levels.DecorateContext(level))(logs)
 		}
 		g    lockGuard
 		tops = []levels.TransformOp{t.Apply, g.Apply}

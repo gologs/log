@@ -105,8 +105,16 @@ const (
 	levelKey key = iota
 )
 
-// NewContext returns a Context annotated with the receiving Level
-func (lvl Level) NewContext(ctx context.Context) context.Context {
+// DecorateContext generates a context.Decorator that injects the given level into
+// the Context.
+func DecorateContext(lvl Level) context.Decorator {
+	return func(ctx context.Context) context.Context {
+		return NewContext(ctx, lvl)
+	}
+}
+
+// NewContext returns a Context annotated with the given Level
+func NewContext(ctx context.Context, lvl Level) context.Context {
 	return context.WithValue(ctx, levelKey, lvl)
 }
 

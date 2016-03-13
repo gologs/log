@@ -182,10 +182,10 @@ func TestPrefix(t *testing.T) {
 	}
 }
 
-func TestContext(t *testing.T) {
+func TestWithContext(t *testing.T) {
 	var (
 		n   = NullOp()
-		d   = Context(nil)
+		d   = WithContext(nil)
 		err = d(n)(nil, nil, "")
 	)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestContext(t *testing.T) {
 	}
 
 	cd := context.NewDecorator("foo", "bar")
-	d = Context(cd)
+	d = WithContext(cd)
 	foo := ""
 	d2 := Decorator(func(op StreamOp) StreamOp {
 		return func(c context.Context, _ Stream, m string, _ ...interface{}) error {

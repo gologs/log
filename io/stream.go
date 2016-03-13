@@ -160,9 +160,9 @@ func Prefix(f func(context.Context) ([]byte, error)) Decorator {
 	}
 }
 
-// Context returns a stream Decorator that applies a context.Decorator for each
+// WithContext returns a stream Decorator that applies a context.Decorator for each
 // stream operation.
-func Context(f context.Decorator) Decorator {
+func WithContext(f context.Decorator) Decorator {
 	if f == nil {
 		return NoDecorator()
 	}

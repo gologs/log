@@ -66,7 +66,7 @@ func TestWithStream(t *testing.T) {
 	}
 }
 
-func TestContext(t *testing.T) {
+func TestWithContext(t *testing.T) {
 	var (
 		d = context.Decorator(func(c context.Context) context.Context {
 			return context.WithValue(c, "foo", "bar")
@@ -78,7 +78,7 @@ func TestContext(t *testing.T) {
 				foo = f
 			}
 		})
-		logs = Context(d)(captureFoo)
+		logs = WithContext(d)(captureFoo)
 	)
 	logs.Logf(context.TODO(), "")
 	if foo != "bar" {
@@ -86,7 +86,7 @@ func TestContext(t *testing.T) {
 	}
 
 	foo = ""
-	logs = Context(nil)(captureFoo)
+	logs = WithContext(nil)(captureFoo)
 	logs.Logf(context.TODO(), "")
 	if foo != "" {
 		t.Errorf("expected '' instead of %q", foo)
