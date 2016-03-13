@@ -24,40 +24,40 @@ import (
 // and it's a dumb enough func that the golang toolchain can optimize this away
 func govetIgnoreFormat() string { return "" }
 
-// Debugf lots at levels.Debug
+// Debugf logs at levels.Debug
 func Debugf(msg string, args ...interface{}) { config.Default.Debugf(msg, args...) }
 
-// Debug lots at levels.Debug
+// Debug logs at levels.Debug
 func Debug(args ...interface{}) { config.Default.Debugf("", args...) }
 
-// Infof lots at levels.Info
+// Infof logs at levels.Info
 func Infof(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
 
-// Info lots at levels.Info
+// Info logs at levels.Info
 func Info(args ...interface{}) { config.Default.Infof("", args...) }
 
-// Warnf lots at levels.Warn
+// Warnf logs at levels.Warn
 func Warnf(msg string, args ...interface{}) { config.Default.Warnf(msg, args...) }
 
-// Warn lots at levels.Warn
+// Warn logs at levels.Warn
 func Warn(args ...interface{}) { config.Default.Warnf("", args...) }
 
-// Errorf lots at levels.Error
+// Errorf logs at levels.Error
 func Errorf(msg string, args ...interface{}) { config.Default.Errorf(msg, args...) }
 
-// Error lots at levels.Error
+// Error logs at levels.Error
 func Error(args ...interface{}) { config.Default.Errorf(govetIgnoreFormat(), args...) }
 
-// Fatalf lots at levels.Fatal
+// Fatalf logs at levels.Fatal
 func Fatalf(msg string, args ...interface{}) { config.Default.Fatalf(msg, args...) }
 
-// Fatal lots at levels.Fatal
+// Fatal logs at levels.Fatal
 func Fatal(args ...interface{}) { config.Default.Fatalf(govetIgnoreFormat(), args...) }
 
-// Panicf lots at levels.Panic
+// Panicf logs at levels.Panic
 func Panicf(msg string, args ...interface{}) { config.Default.Panicf(msg, args...) }
 
-// Panic lots at levels.Panic
+// Panic logs at levels.Panic
 func Panic(args ...interface{}) { config.Default.Panicf(govetIgnoreFormat(), args...) }
 
 // Logf is an alias for Infof
