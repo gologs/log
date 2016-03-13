@@ -75,16 +75,14 @@ type Decorator func(Logger) Logger
 // NoDecorator generates a Decorator that does not transform the original Logger.
 func NoDecorator() Decorator { return func(x Logger) Logger { return x } }
 
-// WithContext generates a Decorator that injects additional context by way `d`.
-func WithContext(d context.Decorator) Decorator {
+// WithContext decorates the given Logger by injecting additional context via `d`.
+func WithContext(d context.Decorator, logger Logger) Logger {
 	if d == nil {
-		return NoDecorator()
+		return logger
 	}
-	return func(logger Logger) Logger {
-		return Func(func(c context.Context, m string, a ...interface{}) {
-			logger.Logf(d(c), m, a...)
-		})
-	}
+	return Func(func(c context.Context, m string, a ...interface{}) {
+		logger.Logf(d(c), m, a...)
+	})
 }
 
 /*

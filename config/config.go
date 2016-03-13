@@ -29,10 +29,10 @@ import (
 
 // DefaultCallerDepth is appropriate when invoking, for example Infof, on the glogs/log
 // package directly.
-// NOTE: the call-depth specified (4) has been carefully selected; if any transforms are
+// NOTE: the call-depth specified (5) has been carefully selected; if any transforms are
 // introduced that would further wrap the logger that we consume below then the call-depth
 // will need to be increased accordingly.
-const DefaultCallerDepth = 4
+const DefaultCallerDepth = 5
 
 type lockGuard struct{ sync.Mutex }
 
@@ -135,7 +135,7 @@ func leveledLogger(
 ) levels.Interface {
 	var (
 		logAt = func(level levels.Level) logger.Logger {
-			return logger.WithContext(levels.DecorateContext(level))(logs)
+			return logger.WithContext(levels.DecorateContext(level), logs)
 		}
 		g    lockGuard
 		tops = []levels.TransformOp{t.Apply, g.Apply}
@@ -149,7 +149,7 @@ func leveledLogger(
 			// For example, the log level threshold filter and caller injection both execute *before*
 			// the mutex is locked (pulling the call stack run the runtime is expensive).
 			levels.TransformOp(func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
-				return x, callTracking.Logger(logs)
+				return x, logger.WithContext(caller.WithContext(callTracking), logs)
 			}),
 		)
 	}

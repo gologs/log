@@ -58,6 +58,9 @@ func WithValue(c Context, key, value interface{}) Context {
 // Decorator functions usually return a modified version of the original Context
 type Decorator func(Context) Context
 
+// NoDecorator generates a decorator that returns the original context, unmodified
+func NoDecorator() Decorator { return func(c Context) Context { return c } }
+
 // NewDecorator generates a decorator that adds the key-value pair to a Context
 func NewDecorator(key, value interface{}) Decorator {
 	return func(c Context) Context {

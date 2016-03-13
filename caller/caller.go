@@ -20,7 +20,6 @@ import (
 	"runtime"
 
 	"github.com/gologs/log/context"
-	"github.com/gologs/log/logger"
 )
 
 type (
@@ -59,29 +58,21 @@ func FromContext(ctx context.Context) (Caller, bool) {
 	return x, ok
 }
 
-// Logger decorates the given logger by injecting Caller into the logging Context
-func Logger(calldepth int, logs logger.Logger) logger.Logger {
-	return logger.Func(func(c context.Context, msg string, args ...interface{}) {
+// WithContext decorates the given context by injecting the Caller if t.Enabled is true
+func WithContext(t Tracking) context.Decorator {
+	if !t.Enabled {
+		return context.NoDecorator()
+	}
+	return func(c context.Context) context.Context {
 		var (
 			funcName           = "???"
-			pc, file, line, ok = runtime.Caller(calldepth)
+			pc, file, line, ok = runtime.Caller(t.Depth)
 		)
 		if !ok {
 			file, line = "???", 0
 		} else if f := runtime.FuncForPC(pc); f != nil {
 			funcName = f.Name()
 		}
-
-		logs.Logf(NewContext(c, file, line, funcName), msg, args...)
-	})
-}
-
-// Logger generates a (possibly) decorated variant of the given logger, depending on
-// the tracking configuration: if tracking is disabled then `logs` is returned unchanged.
-// Otherwise the returned logger will inject Caller into the Context for every log message.
-func (t Tracking) Logger(logs logger.Logger) logger.Logger {
-	if t.Enabled {
-		return Logger(t.Depth, logs)
+		return NewContext(c, file, line, funcName)
 	}
-	return logs
 }

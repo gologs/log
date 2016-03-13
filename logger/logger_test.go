@@ -78,7 +78,7 @@ func TestWithContext(t *testing.T) {
 				foo = f
 			}
 		})
-		logs = WithContext(d)(captureFoo)
+		logs = WithContext(d, captureFoo)
 	)
 	logs.Logf(context.TODO(), "")
 	if foo != "bar" {
@@ -86,7 +86,7 @@ func TestWithContext(t *testing.T) {
 	}
 
 	foo = ""
-	logs = WithContext(nil)(captureFoo)
+	logs = WithContext(nil, captureFoo)
 	logs.Logf(context.TODO(), "")
 	if foo != "" {
 		t.Errorf("expected '' instead of %q", foo)
