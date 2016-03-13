@@ -26,6 +26,7 @@ import (
 	"github.com/gologs/log/config"
 	"github.com/gologs/log/context"
 	"github.com/gologs/log/io"
+	"github.com/gologs/log/io/ioutil"
 	"github.com/gologs/log/logger"
 )
 
@@ -80,6 +81,7 @@ func Example_withCustomStream() {
 		config.OnPanic(config.NoPanic()),
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
+		config.Decorate(ioutil.LevelPrefix()),
 	)
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Infof("and more 4 5 %d", 6)
@@ -160,6 +162,7 @@ func Example_withCustomMarshaler() {
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
 		config.Marshaler(marshaler),
+		config.Decorate(ioutil.LevelPrefix()),
 	)
 	log.Info("k%", "v", "majorVersion", 1, "module", "storage")
 
@@ -171,5 +174,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=164,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=167,func=Example_withCustomMarshaler}
 }

@@ -24,7 +24,6 @@ import (
 	"github.com/gologs/log/context"
 	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/io"
-	"github.com/gologs/log/io/ioutil"
 	"github.com/gologs/log/levels"
 	"github.com/gologs/log/logger"
 )
@@ -68,9 +67,6 @@ func LeveledStreamer(
 	}
 	if s == nil {
 		s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
-	}
-	if len(decorators) == 0 {
-		decorators = encoding.Decorators{ioutil.LevelPrefix()}
 	}
 	if errorSink == nil {
 		errorSink = logger.IgnoreErrors()
