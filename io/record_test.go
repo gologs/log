@@ -40,7 +40,7 @@ func TestRecordIO(t *testing.T) {
 		t.Fatal(err)
 	}
 	if int(n) != len(message) {
-		t.Fatal("expected length %d instead of %d", len(message), n)
+		t.Fatalf("expected length %d instead of %d", len(message), n)
 	}
 	actual := make([]byte, len(message))
 	r, err := b.Read(actual)
@@ -48,9 +48,9 @@ func TestRecordIO(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r != len(message) {
-		t.Fatal("expected length %d instead of %d", len(message), r)
+		t.Fatalf("expected length %d instead of %d", len(message), r)
 	}
 	if string(actual) != message {
-		t.Fatal("expected message %q instead of %q", message, actual)
+		t.Fatalf("expected message %q instead of %q", message, actual)
 	}
 }

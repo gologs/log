@@ -20,6 +20,10 @@ import (
 	"github.com/gologs/log/config"
 )
 
+// this is rubbish, but it silences "go vet"s complaints about lack of format specifiers,
+// and it's a dumb enough func that the golang toolchain can optimize this away
+func govetIgnoreFormat() string { return "" }
+
 // Debugf lots at levels.Debug
 func Debugf(msg string, args ...interface{}) { config.Default.Debugf(msg, args...) }
 
@@ -42,19 +46,19 @@ func Warn(args ...interface{}) { config.Default.Warnf("", args...) }
 func Errorf(msg string, args ...interface{}) { config.Default.Errorf(msg, args...) }
 
 // Error lots at levels.Error
-func Error(args ...interface{}) { config.Default.Errorf("", args...) } // govet
+func Error(args ...interface{}) { config.Default.Errorf(govetIgnoreFormat(), args...) }
 
 // Fatalf lots at levels.Fatal
 func Fatalf(msg string, args ...interface{}) { config.Default.Fatalf(msg, args...) }
 
 // Fatal lots at levels.Fatal
-func Fatal(args ...interface{}) { config.Default.Fatalf("", args...) } // govet
+func Fatal(args ...interface{}) { config.Default.Fatalf(govetIgnoreFormat(), args...) }
 
 // Panicf lots at levels.Panic
 func Panicf(msg string, args ...interface{}) { config.Default.Panicf(msg, args...) }
 
 // Panic lots at levels.Panic
-func Panic(args ...interface{}) { config.Default.Panicf("", args...) } // govet
+func Panic(args ...interface{}) { config.Default.Panicf(govetIgnoreFormat(), args...) }
 
 // Logf is an alias for Infof
 func Logf(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
