@@ -69,19 +69,16 @@ func (bs *BufferedStream) EOM(err error) error {
 	return nil
 }
 
-var stdlog = &BufferedStream{
-	EOMFunc: func(buf Buffer, err error) error {
-		if err != nil {
-			return err
-		}
-		// TODO(jdef) probably need to parameterize the call depth here
-		return log.Output(2, buf.String())
-	},
-}
-
 // SystemStream returns a buffered Stream that logs output via the standard "log" package.
-func SystemStream() Stream {
-	return stdlog
+func SystemStream(calldepth int) Stream {
+	return &BufferedStream{
+		EOMFunc: func(buf Buffer, err error) error {
+			if err != nil {
+				return err
+			}
+			return log.Output(calldepth, buf.String())
+		},
+	}
 }
 
 // StreamOp functions write log messages to a Stream

@@ -98,7 +98,7 @@ func LeveledStreamer(
 		marshaler = io.Format()
 	}
 	if s == nil {
-		s = io.SystemStream()
+		s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
 	}
 	if len(decorators) == 0 {
 		decorators = io.Decorators{levels.Annotator()}
