@@ -18,6 +18,7 @@ package ioutil
 
 import (
 	"github.com/gologs/log/context"
+	"github.com/gologs/log/context/timestamp"
 	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/levels"
 )
@@ -39,6 +40,18 @@ func LevelPrefix() encoding.Decorator {
 			if code, ok := levelCodes[x]; ok {
 				b = code
 			}
+		}
+		return
+	})
+}
+
+// TimestampPrefix generates a stream encoding.Prefix decorator that prepends a timestamp
+// to every log message. The format of the timestamp is determined by the `layout` parameter.
+// See time.Time.Format.
+func TimestampPrefix(layout string) encoding.Decorator {
+	return encoding.Prefix(func(c context.Context) (b []byte, err error) {
+		if ts, ok := timestamp.FromContext(c); ok {
+			b = []byte(ts.Format(layout))
 		}
 		return
 	})
