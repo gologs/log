@@ -109,9 +109,9 @@ func leveledLogger(
 	callTracking caller.Tracking,
 ) levels.Interface {
 	var (
-		logAt = func(level levels.Level) logger.Logger {
-			return logger.WithContext(levels.DecorateContext(level), logs)
-		}
+		logAt = levels.IndexerFunc(func(level levels.Level) (logger.Logger, bool) {
+			return logger.WithContext(levels.DecorateContext(level), logs), true
+		})
 		g    lockGuard
 		tops = []levels.TransformOp{t.Apply, g.Apply}
 	)
@@ -129,7 +129,7 @@ func leveledLogger(
 		)
 	}
 	tops = append(tops, levels.MinTransform(min))
-	return levels.WithLoggers(levels.GenerateLevelLoggers(ctx, logAt, tops...))
+	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, tops...))
 }
 
 func safeExit(fexit func(int)) func(int) {

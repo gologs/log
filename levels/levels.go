@@ -125,24 +125,25 @@ func (f *loggers) Fatalf(m string, a ...interface{}) { f.fatalf.Logf(f.ic(), m, 
 // Panicf implements Interface
 func (f *loggers) Panicf(m string, a ...interface{}) { f.panicf.Logf(f.ic(), m, a...) }
 
-// WithLoggers is a factory function, it generates an instance of Interface.
-// A Logger param with a value of `nil` indicates that logs events for the corresponding
-// Level will be discarded.
-func WithLoggers(ctx context.Context, debugf, infof, warnf, errorf, fatalf, panicf logger.Logger) Interface {
-	check := func(x logger.Logger) logger.Logger {
-		if x == nil {
-			return logger.Null()
+// WithLoggers is a factory function, it generates an instance of Interface using the Logger
+// instances found in the provided Indexer. If a requisite Logger is not found by the Indexer
+// then all logs for that level will be silently discarded.
+func WithLoggers(ctx context.Context, index Indexer) Interface {
+	t := func(lvl Level) logger.Logger {
+		logs, ok := index.Logger(lvl)
+		if !ok {
+			logs = logger.Null()
 		}
-		return x
+		return logs
 	}
 	return &loggers{
 		func() context.Context { return ctx },
-		check(debugf),
-		check(infof),
-		check(warnf),
-		check(errorf),
-		check(fatalf),
-		check(panicf),
+		t(Debug),
+		t(Info),
+		t(Warn),
+		t(Error),
+		t(Fatal),
+		t(Panic),
 	}
 }
 
@@ -153,29 +154,41 @@ func MinTransform(min Level) TransformOp {
 	}
 }
 
-// GenerateLevelLoggers builds a logger for every known log level; for each level
-// create a seed logger and apply chain funcs. The results may be fed directly into
-// WithLoggers.
-func GenerateLevelLoggers(
-	ctx context.Context,
-	seed func(Level) logger.Logger,
-	chain ...TransformOp,
-) (_ context.Context, _, _, _, _, _, _ logger.Logger) {
+// Indexer functions map a Level to a Logger, or else return false
+type Indexer interface {
+	Logger(Level) (logger.Logger, bool)
+}
 
-	m := map[Level]logger.Logger{}
+// IndexerFunc is the functional adaptation of the Indexer interface
+type IndexerFunc func(Level) (logger.Logger, bool)
 
-	for _, x := range allLevels {
-		logs := seed(x)
+// Logger implements Indexer
+func (f IndexerFunc) Logger(lvl Level) (logger.Logger, bool) { return f(lvl) }
+
+type levelMap map[Level]logger.Logger
+
+func (lm levelMap) Logger(lvl Level) (logs logger.Logger, ok bool) {
+	logs, ok = lm[lvl]
+	return
+}
+
+// NewIndexer builds a logger for each Level, starting with the original Logger
+// in the given Indexer and then applying the provided transforms. If nil is given
+// for `levels` then all log levels are assumed.
+func NewIndexer(idx Indexer, levels []Level, chain ...TransformOp) Indexer {
+	if levels == nil {
+		levels = allLevels
+	}
+	m := make(levelMap, len(levels))
+	for _, x := range levels {
+		logs, ok := idx.Logger(x)
+		if !ok {
+			continue
+		}
 		for _, c := range chain {
 			x, logs = c(x, logs)
 		}
 		m[x] = logs
 	}
-	return ctx,
-		m[Debug],
-		m[Info],
-		m[Warn],
-		m[Error],
-		m[Fatal],
-		m[Panic]
+	return m
 }
