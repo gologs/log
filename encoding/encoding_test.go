@@ -133,6 +133,14 @@ func TestPrefix(t *testing.T) {
 	d = Prefix(func(_ context.Context) ([]byte, error) {
 		return []byte("bar"), nil
 	})
+	err = Format(d)(nil, b, "foo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capture != "barfoo" {
+		t.Fatalf("unexpected capture: %q", capture)
+	}
+
 	err = Format(d)(nil, b, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
