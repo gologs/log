@@ -33,14 +33,21 @@ func Example_withCustomLogger() {
 	var (
 		logs    = []string{}
 		flogger = logger.Func(func(_ context.Context, m string, a ...interface{}) {
-			logs = append(logs, fmt.Sprintf(m, a...))
+			if m == "" {
+				logs = append(logs, fmt.Sprint(a...))
+			} else {
+				logs = append(logs, fmt.Sprintf(m, a...))
+			}
 		})
 	)
 
 	// swap out the default logger
 	config.Default, _ = config.DefaultConfig.With(config.Logger(flogger))
 	log.Debugf("I can count 1 2 %d", 3)
-	log.Infof("and more 4 5 %d", 6)
+	log.Logf("and more 4 5 %d", 6)
+
+	govetIgnoreFormatString := func() string { return "7 %%" }
+	log.Log(govetIgnoreFormatString(), 8, 9)
 
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
@@ -49,8 +56,9 @@ func Example_withCustomLogger() {
 	}
 
 	// Output:
-	// 1
+	// 2
 	// and more 4 5 6
+	// 7 %%8 9
 }
 
 func Example_withCustomStream() {
@@ -163,5 +171,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=156,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=164,func=Example_withCustomMarshaler}
 }

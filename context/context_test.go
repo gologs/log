@@ -65,4 +65,10 @@ func Test_WithValue2(t *testing.T) {
 	if !ok || big != "top" {
 		t.Fatalf("expected top for key big")
 	}
+
+	ctx = NewDecorator("jim", "bob")(ctx)
+	jim, ok := ctx.Value("jim").(string)
+	if !ok || jim != "bob" {
+		t.Fatalf("unexpected value for jim: %q", jim)
+	}
 }
