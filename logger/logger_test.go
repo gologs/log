@@ -84,6 +84,13 @@ func TestContext(t *testing.T) {
 	if foo != "bar" {
 		t.Errorf("expected bar instead of %q", foo)
 	}
+
+	foo = ""
+	logs = Context(nil)(captureFoo)
+	logs.Logf(context.TODO(), "")
+	if foo != "" {
+		t.Errorf("expected '' instead of %q", foo)
+	}
 }
 
 func TestWithStream_WithError(t *testing.T) {
