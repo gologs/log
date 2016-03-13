@@ -53,11 +53,11 @@ func Levels() []Level {
 	return []Level{Debug, Info, Warn, Error, Fatal, Panic}
 }
 
-// Logger returns the value of `logs` if `at` is the same or greated than
+// ThresholdLogger returns the value of `logs` if `at` is the same or greater than
 // the receiving log level; otherwise returns a logger that discards all
 // log messages.
-func (lvl Level) Logger(at Level, logs logger.Logger) logger.Logger {
-	if at >= lvl {
+func ThresholdLogger(min, at Level, logs logger.Logger) logger.Logger {
+	if at >= min {
 		return logs
 	}
 	return logger.Null()
@@ -166,9 +166,9 @@ func WithLoggers(ctx context.Context, debugf, infof, warnf, errorf, fatalf, pani
 	}
 }
 
-// Min generates a transform that only logs messages at or above the (receiving) Level.
-func (lvl Level) Min() TransformOp {
+// MinTransform generates a transform that only logs messages at or above the (receiving) Level.
+func MinTransform(lvl Level) TransformOp {
 	return func(x Level, logs logger.Logger) (Level, logger.Logger) {
-		return x, lvl.Logger(x, logs)
+		return x, ThresholdLogger(lvl, x, logs)
 	}
 }

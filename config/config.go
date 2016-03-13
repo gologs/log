@@ -159,7 +159,7 @@ func leveledLogger(
 			}),
 		)
 	}
-	tops = append(tops, min.Min())
+	tops = append(tops, levels.MinTransform(min))
 	return levels.WithLoggers(GenerateLevelLoggers(ctx, logAt, tops...))
 }
 
