@@ -47,8 +47,9 @@ func Null() Stream { return ns }
 
 // Buffer represents a log message that may be, or has been, serialized to a Stream
 type Buffer interface {
-	io.Reader
+	io.WriterTo
 	fmt.Stringer
+	Len() int
 }
 
 // BufferedStream is a Stream implementation that buffers all writes in between calls to EOM.
