@@ -40,10 +40,8 @@ func (ns *nullStream) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-var ns = &nullStream{}
-
 // Null returns a stream that swallows all output, akin to /dev/null
-func Null() Stream { return ns }
+func Null() Stream { return (*nullStream)(nil) }
 
 // Buffer represents a log message that may be, or has been, serialized to a Stream
 type Buffer interface {
@@ -66,7 +64,7 @@ func (bs *BufferedStream) EOM(err error) error {
 	if bs.EOMFunc != nil {
 		return bs.EOMFunc(&bs.Buffer, err)
 	}
-	return nil
+	return err
 }
 
 // SystemStream returns a buffered Stream that logs output via the standard "log" package.
