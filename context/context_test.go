@@ -45,4 +45,22 @@ func Test_WithValue(t *testing.T) {
 	if !ok || foo != "bar" {
 		t.Fatalf("expected bar for key foo")
 	}
+
+	ctx = Background()
+	select {
+	case <-ctx.Done():
+		t.Fatal("background context should never report done")
+	default:
+	}
+
+	ctx = WithValue(ctx, "foo", "bar")
+	ctx = WithValue(ctx, "big", "top")
+	foo, ok = ctx.Value("foo").(string)
+	if !ok || foo != "bar" {
+		t.Fatalf("expected bar for key foo")
+	}
+	big, ok := ctx.Value("big").(string)
+	if !ok || big != "top" {
+		t.Fatalf("expected top for key big")
+	}
 }
