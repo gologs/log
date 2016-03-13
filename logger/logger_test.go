@@ -57,7 +57,7 @@ func TestWithStream(t *testing.T) {
 	var (
 		marshaler = io.Format()
 		output    string
-		buf       = &io.BufferedStream{EOMFunc: func(b io.Buffer, _ error) { output = b.String() }}
+		buf       = &io.BufferedStream{EOMFunc: func(b io.Buffer, _ error) error { output = b.String(); return nil }}
 		logs      = WithStream(buf, marshaler, IgnoreErrors())
 	)
 	logs.Logf(nil, "foo")
@@ -92,13 +92,16 @@ func TestWithStream_WithError(t *testing.T) {
 		eomError    error
 		marshaler   = io.StreamOp(
 			func(_ context.Context, w io.Stream, _ string, _ ...interface{}) error {
-				w.EOM(expectedErr)
-				return expectedErr
+				return w.EOM(expectedErr)
 			})
 		output string
-		buf    = &io.BufferedStream{EOMFunc: func(b io.Buffer, err error) {
-			output = b.String()
+		buf    = &io.BufferedStream{EOMFunc: func(b io.Buffer, err error) error {
 			eomError = err
+			if err != nil {
+				return eomError
+			}
+			output = b.String()
+			return nil
 		}}
 		errCh = make(chan error, 1)
 		logs  = WithStream(buf, marshaler, errCh)
@@ -108,7 +111,7 @@ func TestWithStream_WithError(t *testing.T) {
 		t.Errorf("expected empty output instead of %q", output)
 	}
 	if eomError != expectedErr {
-		t.Errorf("expected %v error instead of %v", expectedErr, eomError)
+		t.Errorf("expected %q error instead of %v", expectedErr, eomError)
 	}
 	select {
 	case err := <-errCh:

@@ -57,8 +57,12 @@ func Example_withCustomStream() {
 	var (
 		logs   = []string{}
 		stream = &io.BufferedStream{
-			EOMFunc: func(b io.Buffer, _ error) {
+			EOMFunc: func(b io.Buffer, err error) error {
+				if err != nil {
+					return err
+				}
 				logs = append(logs, b.String())
+				return nil
 			},
 		}
 	)
@@ -95,8 +99,12 @@ func Example_withCustomMarshaler() {
 	var (
 		logs   = []string{}
 		stream = &io.BufferedStream{
-			EOMFunc: func(b io.Buffer, _ error) {
+			EOMFunc: func(b io.Buffer, err error) error {
+				if err != nil {
+					return err
+				}
 				logs = append(logs, b.String())
+				return nil
 			},
 		}
 		// key=value marshaler
@@ -122,8 +130,7 @@ func Example_withCustomMarshaler() {
 				}
 			}
 			_, _ = w.Write([]byte("}"))
-			w.EOM(nil)
-			return nil
+			return w.EOM(nil)
 		}
 	)
 
@@ -144,5 +151,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=137,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=144,func=Example_withCustomMarshaler}
 }

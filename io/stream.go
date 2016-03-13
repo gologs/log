@@ -30,12 +30,12 @@ type Stream interface {
 	io.Writer
 	// EOM should be invoked by the final "marshaler" stream op after each log message
 	// has been written out. Such calls serve to frame log events.
-	EOM(error)
+	EOM(error) error
 }
 
 type nullStream struct{}
 
-func (ns *nullStream) EOM(_ error) {}
+func (ns *nullStream) EOM(_ error) error { return nil }
 func (ns *nullStream) Write(b []byte) (int, error) {
 	return len(b), nil
 }
@@ -56,22 +56,25 @@ type BufferedStream struct {
 	bytes.Buffer
 	// EOMFunc (optional) is invoked upon calls to EOM and is given the full contents of buffer.
 	// References to the buffer are no longer valid upon returning from EOMFunc.
-	EOMFunc func(Buffer, error)
+	EOMFunc func(Buffer, error) error
 }
 
 // EOM implements Stream
-func (bs *BufferedStream) EOM(err error) {
+func (bs *BufferedStream) EOM(err error) error {
 	defer bs.Reset()
 	if bs.EOMFunc != nil {
-		bs.EOMFunc(&bs.Buffer, err)
+		return bs.EOMFunc(&bs.Buffer, err)
 	}
+	return nil
 }
 
 var stdlog = &BufferedStream{
-	EOMFunc: func(buf Buffer, _ error) {
-		// ignore errors
+	EOMFunc: func(buf Buffer, err error) error {
+		if err != nil {
+			return err
+		}
 		// TODO(jdef) probably need to parameterize the call depth here
-		_ = log.Output(2, buf.String())
+		return log.Output(2, buf.String())
 	},
 }
 
@@ -136,7 +139,7 @@ func Format(d ...Decorator) StreamOp {
 			} else {
 				_, err = fmt.Fprint(w, a...)
 			}
-			w.EOM(err)
+			err = w.EOM(err)
 			return
 		}))
 }
