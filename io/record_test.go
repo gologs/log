@@ -77,7 +77,7 @@ func (lw *flakeyWriter) Write(b []byte) (x int, err error) {
 func TestRecordIO_WithFlakeyWriter(t *testing.T) {
 	const message = "foo"
 	var (
-		lw        = flakeyWriter(2)
+		lw        flakeyWriter
 		rio       = RecordIO(&lw)
 		marshaler = Format()
 		err       = marshaler(nil, rio, message)
