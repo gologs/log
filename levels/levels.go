@@ -18,7 +18,6 @@ package levels
 
 import (
 	"github.com/gologs/log/context"
-	"github.com/gologs/log/io"
 	"github.com/gologs/log/logger"
 )
 
@@ -47,11 +46,7 @@ const (
 	Panic
 )
 
-// Levels returns a slice that contains all of the log levels supported
-// by this package.
-func Levels() []Level {
-	return []Level{Debug, Info, Warn, Error, Fatal, Panic}
-}
+var allLevels = []Level{Debug, Info, Warn, Error, Fatal, Panic}
 
 // ThresholdLogger returns the value of `logs` if `at` is the same or greater than
 // the `min` log level; otherwise returns a logger that discards all log messages.
@@ -60,28 +55,6 @@ func ThresholdLogger(min, at Level, logs logger.Logger) logger.Logger {
 		return logs
 	}
 	return logger.Null()
-}
-
-var levelCodes = map[Level][]byte{
-	Debug: []byte("D"),
-	Info:  []byte("I"),
-	Warn:  []byte("W"),
-	Error: []byte("E"),
-	Fatal: []byte("F"),
-	Panic: []byte("P"),
-}
-
-// Annotator generates a stream io.Prefix decorator that prepends a level code
-// label to every log message.
-func Annotator() io.Decorator {
-	return io.Prefix(func(c context.Context) (b []byte, err error) {
-		if x, ok := FromContext(c); ok {
-			if code, ok := levelCodes[x]; ok {
-				b = code
-			}
-		}
-		return
-	})
 }
 
 // Transform collects Decorators that are applied to `Logger`s for specific `Level`s.
@@ -178,4 +151,31 @@ func MinTransform(min Level) TransformOp {
 	return func(x Level, logs logger.Logger) (Level, logger.Logger) {
 		return x, ThresholdLogger(min, x, logs)
 	}
+}
+
+// GenerateLevelLoggers builds a logger for every known log level; for each level
+// create a seed logger and apply chain funcs. The results may be fed directly into
+// WithLoggers.
+func GenerateLevelLoggers(
+	ctx context.Context,
+	seed func(Level) logger.Logger,
+	chain ...TransformOp,
+) (_ context.Context, _, _, _, _, _, _ logger.Logger) {
+
+	m := map[Level]logger.Logger{}
+
+	for _, x := range allLevels {
+		logs := seed(x)
+		for _, c := range chain {
+			x, logs = c(x, logs)
+		}
+		m[x] = logs
+	}
+	return ctx,
+		m[Debug],
+		m[Info],
+		m[Warn],
+		m[Error],
+		m[Fatal],
+		m[Panic]
 }

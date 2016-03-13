@@ -23,6 +23,7 @@ import (
 	"github.com/gologs/log/caller"
 	"github.com/gologs/log/context"
 	"github.com/gologs/log/io"
+	"github.com/gologs/log/io/ioutil"
 	"github.com/gologs/log/levels"
 	"github.com/gologs/log/logger"
 )
@@ -47,33 +48,6 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 // Apply is a levels.TransformOp
 var _ = levels.TransformOp((&lockGuard{}).Apply)
 
-// GenerateLevelLoggers builds a logger for every known log level; for each level
-// create a seed logger and apply chain funcs. The results may be fed directly into
-// levels.WithLoggers.
-func GenerateLevelLoggers(
-	ctx context.Context,
-	seed func(levels.Level) logger.Logger,
-	chain ...levels.TransformOp,
-) (_ context.Context, _, _, _, _, _, _ logger.Logger) {
-
-	m := map[levels.Level]logger.Logger{}
-
-	for _, x := range levels.Levels() {
-		logs := seed(x)
-		for _, c := range chain {
-			x, logs = c(x, logs)
-		}
-		m[x] = logs
-	}
-	return ctx,
-		m[levels.Debug],
-		m[levels.Info],
-		m[levels.Warn],
-		m[levels.Error],
-		m[levels.Fatal],
-		m[levels.Panic]
-}
-
 // LeveledStreamer generates a leveled logging interface for the given io.Stream oriented configuration.
 func LeveledStreamer(
 	ctx context.Context,
@@ -95,7 +69,7 @@ func LeveledStreamer(
 		s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
 	}
 	if len(decorators) == 0 {
-		decorators = io.Decorators{levels.Annotator()}
+		decorators = io.Decorators{ioutil.LevelPrefix()}
 	}
 	if errorSink == nil {
 		errorSink = logger.IgnoreErrors()
@@ -154,7 +128,7 @@ func leveledLogger(
 		)
 	}
 	tops = append(tops, levels.MinTransform(min))
-	return levels.WithLoggers(GenerateLevelLoggers(ctx, logAt, tops...))
+	return levels.WithLoggers(levels.GenerateLevelLoggers(ctx, logAt, tops...))
 }
 
 func safeExit(fexit func(int)) func(int) {
