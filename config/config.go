@@ -213,8 +213,17 @@ var (
 	_ = &Config{Panic: NoPanic()} // NoPanic is a panic func generator
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
-	// DefaultConfig is used to generate the initial Default logger
-	DefaultConfig = Config{
+	// DefaultConfig is used to generate the initial Default logger.
+	DefaultConfig = Porcelain()
+
+	// Default is a logging instance constructed with default configuration:
+	// it logs everything "info" and higher ("warn", "error", ...) to logger.SystemLogger()
+	Default = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
+)
+
+// Porcelain returns a cleanroom, configuration.
+func Porcelain() Config {
+	return Config{
 		Level:    levels.Info, // Level defaults to levels.Info
 		ExitCode: 1,           // ExitCode defaults to 1
 		CallTracking: caller.Tracking{
@@ -222,11 +231,7 @@ var (
 			Depth:   DefaultCallerDepth,
 		},
 	}
-
-	// Default is a logging instance constructed with default configuration:
-	// it logs everything "info" and higher ("warn", "error", ...) to logger.SystemLogger()
-	Default = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
-)
+}
 
 // Option is a functional option interface for making changes to a Config
 type Option func(*Config) Option
