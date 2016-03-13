@@ -72,8 +72,10 @@ func WithStream(s io.Stream, op io.StreamOp, errCh chan<- error) Logger {
 // Decorator functions typically generate a transformed version of the original Logger.
 type Decorator func(Logger) Logger
 
+/*
 // NoDecorator generates a Decorator that does not transform the original Logger.
 func NoDecorator() Decorator { return func(x Logger) Logger { return x } }
+*/
 
 // WithContext decorates the given Logger by injecting additional context via `d`.
 func WithContext(d context.Decorator, logger Logger) Logger {

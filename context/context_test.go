@@ -71,4 +71,10 @@ func Test_WithValue2(t *testing.T) {
 	if !ok || jim != "bob" {
 		t.Fatalf("unexpected value for jim: %q", jim)
 	}
+
+	ctx = NoDecorator()(ctx)
+	jim, ok = ctx.Value("jim").(string)
+	if !ok || jim != "bob" {
+		t.Fatalf("unexpected value for jim: %q", jim)
+	}
 }
