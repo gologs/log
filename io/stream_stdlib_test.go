@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encoding_test
+package io_test
 
 import (
 	"bytes"
@@ -25,17 +25,17 @@ import (
 	"testing"
 
 	"github.com/gologs/log/context"
-	. "github.com/gologs/log/encoding"
-	"github.com/gologs/log/io"
+	"github.com/gologs/log/encoding"
+	. "github.com/gologs/log/io"
 )
 
 func TestSystemStream(t *testing.T) {
 	const message = "hello stdlib log"
 	var (
-		syslog    = io.SystemStream(0)
+		syslog    = SystemStream(0)
 		buf       bytes.Buffer
 		expected  = message + "\n"
-		marshaler = Format()
+		marshaler = encoding.Format()
 	)
 	log.SetOutput(&buf)
 	err := marshaler(nil, syslog, message)
@@ -70,7 +70,7 @@ func TestSystemStream(t *testing.T) {
 	}
 
 	expectedErr := errors.New("someExpectedError")
-	marshaler = Marshaler(func(c context.Context, st io.Stream, m string, a ...interface{}) error {
+	marshaler = encoding.Marshaler(func(c context.Context, st Stream, m string, a ...interface{}) error {
 		// ignore the message, just generate an error
 		return st.EOM(expectedErr)
 	})
