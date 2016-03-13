@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-
-	"github.com/gologs/log/context"
 )
 
 // Stream writes serialized log data ... somewhere.
@@ -79,37 +77,6 @@ func SystemStream(calldepth int) Stream {
 	}
 }
 
-// StreamOp functions write log messages to a Stream
-type StreamOp func(context.Context, Stream, string, ...interface{}) error
-
-var nullOp = func(_ context.Context, _ Stream, _ string, _ ...interface{}) (_ error) { return }
-
-// NullOp returns a stream op that discards all log messages, akin to /dev/null
-func NullOp() StreamOp { return nullOp }
-
-// Decorator functions typically return a StreamOp that somehow augments the functionality
-// of the original StreamOp
-type Decorator func(StreamOp) StreamOp
-
-// NoDecorator returns a generator that does not modify the original StreamOp
-func NoDecorator() Decorator { return func(x StreamOp) StreamOp { return x } }
-
-// Decorators is a convenience type that make it simpler to apply multiple Decorator functions
-// to a StreamOp
-type Decorators []Decorator
-
-// Decorate applies all of the decorators to the given StreamOp, in order. This means that the
-// last decorator in the collection will be the first decorator invoked upon calls to the returned
-// StreamOp instance.
-func (dd Decorators) Decorate(op StreamOp) StreamOp {
-	for _, d := range dd {
-		if d != nil {
-			op = d(op)
-		}
-	}
-	return op
-}
-
 /*
 type byteTracker struct {
 	Stream
@@ -124,51 +91,3 @@ func (bt *byteTracker) Write(buf []byte) (int, error) {
 	return n, err
 }
 */
-
-// Format returns a StreamOp that uses fmt Print and Printf to format
-// log writes to streams. An EOM signal is sent after every log message.
-func Format(d ...Decorator) StreamOp {
-	return Decorators(d).Decorate(StreamOp(
-		func(_ context.Context, w Stream, m string, a ...interface{}) (err error) {
-			if m != "" {
-				_, err = fmt.Fprintf(w, m, a...)
-			} else {
-				_, err = fmt.Fprint(w, a...)
-			}
-			err = w.EOM(err)
-			return
-		}))
-}
-
-// Prefix returns a stream Decorator that outputs a prefix blob for each stream
-// operation.
-func Prefix(f func(context.Context) ([]byte, error)) Decorator {
-	if f == nil {
-		return NoDecorator()
-	}
-	return func(op StreamOp) StreamOp {
-		return func(c context.Context, s Stream, m string, a ...interface{}) (err error) {
-			var b []byte
-			if b, err = f(c); err == nil && len(b) > 0 {
-				_, err = s.Write(b)
-			}
-			if err == nil {
-				err = op(c, s, m, a...)
-			}
-			return
-		}
-	}
-}
-
-// WithContext returns a stream Decorator that applies a context.Decorator for each
-// stream operation.
-func WithContext(f context.Decorator) Decorator {
-	if f == nil {
-		return NoDecorator()
-	}
-	return func(op StreamOp) StreamOp {
-		return func(c context.Context, s Stream, m string, a ...interface{}) error {
-			return op(f(c), s, m, a...)
-		}
-	}
-}

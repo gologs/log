@@ -22,6 +22,7 @@ import (
 	stdio "io"
 	"testing"
 
+	"github.com/gologs/log/encoding"
 	. "github.com/gologs/log/io"
 )
 
@@ -30,7 +31,7 @@ func TestRecordIO(t *testing.T) {
 	var (
 		b         bytes.Buffer
 		rio       = RecordIO(&b)
-		marshaler = Format()
+		marshaler = encoding.Format()
 		err       = marshaler(nil, rio, message)
 	)
 	if err != nil {
@@ -79,7 +80,7 @@ func TestRecordIO_WithFlakeyWriter(t *testing.T) {
 	var (
 		lw        flakeyWriter
 		rio       = RecordIO(&lw)
-		marshaler = Format()
+		marshaler = encoding.Format()
 		err       = marshaler(nil, rio, message)
 	)
 	if err != stdio.ErrShortWrite {

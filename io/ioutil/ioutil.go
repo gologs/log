@@ -18,7 +18,7 @@ package ioutil
 
 import (
 	"github.com/gologs/log/context"
-	"github.com/gologs/log/io"
+	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/levels"
 )
 
@@ -31,10 +31,10 @@ var levelCodes = map[levels.Level][]byte{
 	levels.Panic: []byte("P"),
 }
 
-// LevelPrefix generates a stream io.Prefix decorator that prepends a level code
+// LevelPrefix generates a stream encoding.Prefix decorator that prepends a level code
 // label to every log message.
-func LevelPrefix() io.Decorator {
-	return io.Prefix(func(c context.Context) (b []byte, err error) {
+func LevelPrefix() encoding.Decorator {
+	return encoding.Prefix(func(c context.Context) (b []byte, err error) {
 		if x, ok := levels.FromContext(c); ok {
 			if code, ok := levelCodes[x]; ok {
 				b = code

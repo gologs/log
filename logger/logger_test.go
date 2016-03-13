@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gologs/log/context"
+	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/io"
 	. "github.com/gologs/log/logger"
 )
@@ -55,7 +56,7 @@ func TestMulti(t *testing.T) {
 
 func TestWithStream(t *testing.T) {
 	var (
-		marshaler = io.Format()
+		marshaler = encoding.Format()
 		output    string
 		buf       = &io.BufferedStream{EOMFunc: func(b io.Buffer, _ error) error { output = b.String(); return nil }}
 		logs      = WithStream(buf, marshaler, IgnoreErrors())
@@ -97,7 +98,7 @@ func TestWithStream_WithError(t *testing.T) {
 	var (
 		expectedErr = errors.New("some error")
 		eomError    error
-		marshaler   = io.StreamOp(
+		marshaler   = encoding.Marshaler(
 			func(_ context.Context, w io.Stream, _ string, _ ...interface{}) error {
 				return w.EOM(expectedErr)
 			})

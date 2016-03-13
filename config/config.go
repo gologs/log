@@ -22,6 +22,7 @@ import (
 
 	"github.com/gologs/log/caller"
 	"github.com/gologs/log/context"
+	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/io"
 	"github.com/gologs/log/io/ioutil"
 	"github.com/gologs/log/levels"
@@ -53,23 +54,23 @@ func LeveledStreamer(
 	ctx context.Context,
 	min levels.Level,
 	s io.Stream,
-	marshaler io.StreamOp,
+	marshaler encoding.Marshaler,
 	t levels.Transform,
 	callTracking caller.Tracking,
 	errorSink chan<- error,
-	decorators ...io.Decorator,
+	decorators ...encoding.Decorator,
 ) levels.Interface {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if marshaler == nil {
-		marshaler = io.Format()
+		marshaler = encoding.Format()
 	}
 	if s == nil {
 		s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
 	}
 	if len(decorators) == 0 {
-		decorators = io.Decorators{ioutil.LevelPrefix()}
+		decorators = encoding.Decorators{ioutil.LevelPrefix()}
 	}
 	if errorSink == nil {
 		errorSink = logger.IgnoreErrors()
@@ -77,7 +78,7 @@ func LeveledStreamer(
 
 	logs := logger.WithStream(
 		s,
-		io.Decorators(decorators).Decorate(marshaler),
+		encoding.Decorators(decorators).Decorate(marshaler),
 		errorSink,
 	)
 	return leveledLogger(ctx, min, logs, t, callTracking)
@@ -190,11 +191,11 @@ type Config struct {
 	Panic func(string)
 
 	// Decorators are applied to the underlying Sink.Stream (never to Sink.Logger)
-	Decorators io.Decorators
+	Decorators encoding.Decorators
 
 	// Marshals a log event to an underlying Sink.Stream, defaults to io.Printf.
 	// All marshalers should invoke Stream.EOM after processing each log event.
-	Marshaler io.StreamOp
+	Marshaler encoding.Marshaler
 
 	// ErrorSink receives errors as they occur upon processing streaming events
 	// (only applies when using Sink.Stream, not for Sink.Logger).
@@ -340,7 +341,7 @@ func OnPanic(f func(msg string)) Option {
 }
 
 // Marshaler is a functional configuration Option that serializes log messages to an io.Stream.
-func Marshaler(m io.StreamOp) Option {
+func Marshaler(m encoding.Marshaler) Option {
 	return func(c *Config) Option {
 		old := c.Marshaler
 		c.Marshaler = m
@@ -349,11 +350,11 @@ func Marshaler(m io.StreamOp) Option {
 }
 
 // Decorate returns a functional Option that appends the given decorators to the Config.
-func Decorate(d ...io.Decorator) Option {
+func Decorate(d ...encoding.Decorator) Option {
 	return func(c *Config) Option {
-		var old io.Decorators
+		var old encoding.Decorators
 		if n := len(c.Decorators); n > 0 {
-			old = make(io.Decorators, n)
+			old = make(encoding.Decorators, n)
 			copy(old, c.Decorators)
 		}
 		c.Decorators = append(c.Decorators, d...)
