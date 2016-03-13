@@ -80,6 +80,13 @@ func Example_withCustomStream() {
 	log.Fatalf("and more 7 8 %d", 9)
 	log.Panicf("and more 8 9 %d", 0)
 
+	log.Debug("debug w/o", "format")
+	log.Info("info w/o", "format")
+	log.Warn("warn w/o", "format")
+	log.Error("error w/o", "format")
+	log.Fatal("fatal w/o", "format")
+	log.Panic("panic w/o", "format")
+
 	// print what we logged
 	fmt.Printf("%d\n", len(logs))
 	for i := range logs {
@@ -87,12 +94,17 @@ func Example_withCustomStream() {
 	}
 
 	// Output:
-	// 5
+	// 10
 	// Iand more 4 5 6
 	// Wand more 5 6 7
 	// Eand more 6 7 8
 	// Fand more 7 8 9
 	// Pand more 8 9 0
+	// Iinfo w/oformat
+	// Wwarn w/oformat
+	// Eerror w/oformat
+	// Ffatal w/oformat
+	// Ppanic w/oformat
 }
 
 func Example_withCustomMarshaler() {
@@ -151,5 +163,5 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=144,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=156,func=Example_withCustomMarshaler}
 }
