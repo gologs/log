@@ -19,6 +19,7 @@ package io_test
 import (
 	"bytes"
 	"encoding/binary"
+	stdio "io"
 	"testing"
 
 	. "github.com/gologs/log/io"
@@ -52,5 +53,36 @@ func TestRecordIO(t *testing.T) {
 	}
 	if string(actual) != message {
 		t.Fatalf("expected message %q instead of %q", message, actual)
+	}
+}
+
+type flakeyWriter int
+
+// Write should return an error if not all bytes are written out; we purposely
+// violate that rule here to invoke additional error checking in RecordIO
+func (lw *flakeyWriter) Write(b []byte) (x int, err error) {
+	if *lw > 0 {
+		x = len(b)
+		if x < int(*lw) {
+			*lw -= flakeyWriter(x)
+		} else {
+			x = int(*lw)
+			*lw = 0
+			// would normally set err here
+		}
+	} // else, would normally set err here
+	return
+}
+
+func TestRecordIO_WithFlakeyWriter(t *testing.T) {
+	const message = "foo"
+	var (
+		lw        = flakeyWriter(2)
+		rio       = RecordIO(&lw)
+		marshaler = Format()
+		err       = marshaler(nil, rio, message)
+	)
+	if err != stdio.ErrShortWrite {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
