@@ -41,3 +41,11 @@ func FromContext(ctx context.Context) (t time.Time, ok bool) {
 func NewContext(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, tsKey, t)
 }
+
+// NewDecorator returns a context Decorator that generates a context with a clock-
+// generated timestamp entry.
+func NewDecorator(clock Clock) context.Decorator {
+	return func(ctx context.Context) context.Context {
+		return NewContext(ctx, clock())
+	}
+}

@@ -61,6 +61,21 @@ func WithValue(c Context, key, value interface{}) Context {
 // Decorator functions usually return a modified version of the original Context
 type Decorator func(Context) Context
 
+// Decorators aggregates Decorator
+type Decorators []Decorator
+
+// Decorate applies all of the decorators to the given Context, in order. This means that the
+// last decorator in the collection will be the first decorator invoked upon calls to the returned
+// Context instance.
+func (dd Decorators) Decorate(ctx Context) Context {
+	for _, d := range dd {
+		if d != nil {
+			ctx = d(ctx)
+		}
+	}
+	return ctx
+}
+
 // NoDecorator generates a decorator that returns the original context, unmodified
 func NoDecorator() Decorator { return func(c Context) Context { return c } }
 
@@ -68,5 +83,14 @@ func NoDecorator() Decorator { return func(c Context) Context { return c } }
 func NewDecorator(key, value interface{}) Decorator {
 	return func(c Context) Context {
 		return WithValue(c, key, value)
+	}
+}
+
+// DecorateGetter applies the given decorators to the supplied Getter such that the returned
+// Getter generates Context objects produced by the supplied Getter and then decorated by the
+// supplied decorators.
+func DecorateGetter(ctxf Getter, d ...Decorator) Getter {
+	return func() Context {
+		return Decorators(d).Decorate(ctxf())
 	}
 }

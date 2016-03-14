@@ -19,9 +19,11 @@ package config
 import (
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gologs/log/caller"
 	"github.com/gologs/log/context"
+	"github.com/gologs/log/context/timestamp"
 	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/io"
 	"github.com/gologs/log/levels"
@@ -117,6 +119,7 @@ func leveledLogger(
 		)
 	}
 	tops = append(tops, levels.MinTransform(min))
+	ctx = context.DecorateGetter(ctx, timestamp.NewDecorator(time.Now))
 	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, tops...))
 }
 
