@@ -98,7 +98,7 @@ func FromContext(ctx context.Context) (Level, bool) {
 }
 
 type loggers struct {
-	ic     func() context.Context // initialContext
+	ctxf   context.Getter
 	debugf logger.Logger
 	infof  logger.Logger
 	warnf  logger.Logger
@@ -108,27 +108,27 @@ type loggers struct {
 }
 
 // Debugf implements Interface
-func (f *loggers) Debugf(m string, a ...interface{}) { f.debugf.Logf(f.ic(), m, a...) }
+func (f *loggers) Debugf(m string, a ...interface{}) { f.debugf.Logf(f.ctxf(), m, a...) }
 
 // Infof implements Interface
-func (f *loggers) Infof(m string, a ...interface{}) { f.infof.Logf(f.ic(), m, a...) }
+func (f *loggers) Infof(m string, a ...interface{}) { f.infof.Logf(f.ctxf(), m, a...) }
 
 // Warnf implements Interface
-func (f *loggers) Warnf(m string, a ...interface{}) { f.warnf.Logf(f.ic(), m, a...) }
+func (f *loggers) Warnf(m string, a ...interface{}) { f.warnf.Logf(f.ctxf(), m, a...) }
 
 // Errorf implements Interface
-func (f *loggers) Errorf(m string, a ...interface{}) { f.errorf.Logf(f.ic(), m, a...) }
+func (f *loggers) Errorf(m string, a ...interface{}) { f.errorf.Logf(f.ctxf(), m, a...) }
 
 // Fatalf implements Interface
-func (f *loggers) Fatalf(m string, a ...interface{}) { f.fatalf.Logf(f.ic(), m, a...) }
+func (f *loggers) Fatalf(m string, a ...interface{}) { f.fatalf.Logf(f.ctxf(), m, a...) }
 
 // Panicf implements Interface
-func (f *loggers) Panicf(m string, a ...interface{}) { f.panicf.Logf(f.ic(), m, a...) }
+func (f *loggers) Panicf(m string, a ...interface{}) { f.panicf.Logf(f.ctxf(), m, a...) }
 
 // WithLoggers is a factory function, it generates an instance of Interface using the Logger
 // instances found in the provided Indexer. If a requisite Logger is not found by the Indexer
 // then all logs for that level will be silently discarded.
-func WithLoggers(ctx context.Context, index Indexer) Interface {
+func WithLoggers(ctxf context.Getter, index Indexer) Interface {
 	t := func(lvl Level) logger.Logger {
 		logs, ok := index.Logger(lvl)
 		if !ok {
@@ -137,7 +137,7 @@ func WithLoggers(ctx context.Context, index Indexer) Interface {
 		return logs
 	}
 	return &loggers{
-		func() context.Context { return ctx },
+		ctxf,
 		t(Debug),
 		t(Info),
 		t(Warn),

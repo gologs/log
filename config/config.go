@@ -50,21 +50,15 @@ var _ = levels.TransformOp((&lockGuard{}).Apply)
 
 // LeveledStreamer generates a leveled logging interface for the given io.Stream oriented configuration.
 func LeveledStreamer(
-	ctx context.Context,
+	ctx context.Getter,
 	min levels.Level,
 	s io.Stream,
 	marshaler encoding.Marshaler,
 	t levels.Transform,
 	callTracking caller.Tracking,
 	errorSink chan<- error,
-	decorators ...encoding.Decorator,
 ) levels.Interface {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if marshaler == nil {
-		marshaler = encoding.Format()
-	}
+	ctx = safeContext(ctx)
 	if s == nil {
 		s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
 	}
@@ -74,7 +68,7 @@ func LeveledStreamer(
 
 	logs := logger.WithStream(
 		s,
-		encoding.Decorators(decorators).Decorate(marshaler),
+		marshaler,
 		errorSink,
 	)
 	return leveledLogger(ctx, min, logs, t, callTracking)
@@ -82,15 +76,13 @@ func LeveledStreamer(
 
 // LeveledLogger generates a leveled logging interface for the given logger.Logger oriented configuration.
 func LeveledLogger(
-	ctx context.Context,
+	ctx context.Getter,
 	min levels.Level,
 	logs logger.Logger,
 	t levels.Transform,
 	callTracking caller.Tracking,
 ) levels.Interface {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = safeContext(ctx)
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
@@ -98,7 +90,7 @@ func LeveledLogger(
 }
 
 func leveledLogger(
-	ctx context.Context,
+	ctx context.Getter,
 	min levels.Level,
 	logs logger.Logger,
 	t levels.Transform,
@@ -162,11 +154,27 @@ func panicLogger(logs logger.Logger, fpanic func(string)) logger.Logger {
 type StreamOrLogger struct {
 	io.Stream
 	logger.Logger
+
+	// Decorators are applied to the Stream (never to Sink.Logger)
+	Decorators encoding.Decorators
+
+	// Marshals a log event to Stream, defaults to io.Printf.
+	// A Marshaler invokes Stream.EOM as the final step of processing each log event.
+	Marshaler encoding.Marshaler
+
+	// Errors receives errors as they occur upon processing streaming events
+	// (only applies when using Stream, not for Logger).
+	// Defaults to logger.IgnoreErrors().
+	Errors chan<- error
 }
 
 // Config is a complete logging configuration. Fields may be tweaked manually, or by way
 // of functional Option funcs.
 type Config struct {
+	// Context returns the func that generates a context for each log event. This func
+	// is invoked once for every log event and must be safe to execute concurrently.
+	Context context.Getter
+
 	// Level is the minimum log threshold; messages below this level will be discarded
 	Level levels.Level
 
@@ -185,18 +193,6 @@ type Config struct {
 
 	// Panic, when unset, will invoke golang's panic(string) upon calls to Panicf
 	Panic func(string)
-
-	// Decorators are applied to the underlying Sink.Stream (never to Sink.Logger)
-	Decorators encoding.Decorators
-
-	// Marshals a log event to an underlying Sink.Stream, defaults to io.Printf.
-	// All marshalers should invoke Stream.EOM after processing each log event.
-	Marshaler encoding.Marshaler
-
-	// ErrorSink receives errors as they occur upon processing streaming events
-	// (only applies when using Sink.Stream, not for Sink.Logger).
-	// Defaults to logger.IgnoreErrors().
-	ErrorSink chan<- error
 }
 
 // NoPanic generates a noop panic func
@@ -209,12 +205,12 @@ var (
 	_ = &Config{Panic: NoPanic()} // NoPanic is a panic func generator
 	_ = &Config{Exit: NoExit()}   // NoExit is an exit func generator
 
-	// DefaultConfig is used to generate the initial Default logger.
+	// DefaultConfig is used to generate the initial value for Current.
 	DefaultConfig = Porcelain()
 
-	// Default is a logging instance constructed with default configuration:
+	// Logging is a logging instance constructed with default configuration:
 	// it logs everything "info" and higher ("warn", "error", ...) to logger.SystemLogger()
-	Default = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
+	Logging = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
 )
 
 // Porcelain returns a cleanroom, configuration.
@@ -239,18 +235,26 @@ func NoOption() (opt Option) {
 	return
 }
 
-// With generates a logging interface using the specified functional Options with a
-// context.Background()
-func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
-	return cfg.WithContext(context.Background(), opt...)
+func safeMarshaler(m encoding.Marshaler) encoding.Marshaler {
+	if m == nil {
+		return encoding.Format()
+	}
+	return m
 }
 
-// WithContext generates a logging interface using the specified Context and functional Options
-func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interface, Option) {
-	lastOpt := NoOption()
+func safeContext(f context.Getter) context.Getter {
+	if f == nil {
+		return context.TODO
+	}
+	return f
+}
+
+// With generates a logging interface using the receiving configuration with the given Options applied.
+func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
+	rollback := Set(cfg)
 	for _, o := range opt {
 		if o != nil {
-			lastOpt = o(&cfg)
+			_ = o(&cfg)
 		}
 	}
 	t := levels.Transform{
@@ -263,21 +267,45 @@ func (cfg Config) WithContext(ctx context.Context, opt ...Option) (levels.Interf
 	}
 	if cfg.Sink.Stream != nil {
 		return LeveledStreamer(
-			ctx,
+			cfg.Context,
 			cfg.Level,
 			cfg.Sink.Stream,
-			cfg.Marshaler,
+			cfg.Sink.Decorators.Decorate(safeMarshaler(cfg.Sink.Marshaler)),
 			t,
 			cfg.CallTracking,
-			cfg.ErrorSink,
-			cfg.Decorators...), lastOpt
+			cfg.Sink.Errors), rollback
 	}
 	return LeveledLogger(
-		ctx,
+		cfg.Context,
 		cfg.Level,
 		cfg.Sink.Logger,
 		t,
-		cfg.CallTracking), lastOpt
+		cfg.CallTracking), rollback
+}
+
+// Copy returns a deep copy of the current config
+func (cfg Config) Copy() Config {
+	clone := cfg
+	clone.Sink.Decorators = cfg.Sink.Decorators.Copy()
+	return clone
+}
+
+// Set returns a functional Option that sets the entire configuration to that specified.
+func Set(cfg Config) Option {
+	return func(c *Config) Option {
+		old := c.Copy()
+		*c = cfg.Copy()
+		return Set(old)
+	}
+}
+
+// Context returns a functional Option that sets the Context generator func.
+func Context(f context.Getter) Option {
+	return func(c *Config) Option {
+		old := c.Context
+		c.Context = f
+		return Context(old)
+	}
 }
 
 // Level is a functional configuration Option that sets the minimum log level threshold.
@@ -299,13 +327,15 @@ func Sink(x StreamOrLogger) Option {
 }
 
 // Stream is a functional configuration Option that establishes the given io.Stream as the
-// destination for log messages.
+// destination for log messages. Setting a Stream Option resets all other fields in the
+// configuration's Sink.
 func Stream(stream io.Stream) Option {
 	return Sink(StreamOrLogger{Stream: stream})
 }
 
 // Logger is a functional configuration Option that establishes the given logger.Logger as the
-// destination for log messages.
+// destination for log messages. Setting a Logging Option resets all other fields in the
+// configuration's Sink.
 func Logger(logs logger.Logger) Option {
 	return Sink(StreamOrLogger{Logger: logs})
 }
@@ -344,27 +374,24 @@ func OnPanic(f func(msg string)) Option {
 // Marshaler is a functional configuration Option that serializes log messages to an io.Stream.
 func Marshaler(m encoding.Marshaler) Option {
 	return func(c *Config) Option {
-		old := c.Marshaler
-		c.Marshaler = m
+		old := c.Sink.Marshaler
+		c.Sink.Marshaler = m
 		return Marshaler(old)
 	}
 }
 
-// Decorate returns a functional Option that appends the given decorators to the Config.
-func Decorate(d ...encoding.Decorator) Option {
+// Encoding returns a functional Option that appends the given encoding `Decorator`s to what's
+// currently configured.
+func Encoding(d ...encoding.Decorator) Option {
 	return func(c *Config) Option {
-		var old encoding.Decorators
-		if n := len(c.Decorators); n > 0 {
-			old = make(encoding.Decorators, n)
-			copy(old, c.Decorators)
-		}
-		c.Decorators = append(c.Decorators, d...)
+		old := c.Sink.Decorators.Copy()
+		c.Sink.Decorators = append(c.Sink.Decorators, d...)
 
 		// the undo option should copy back the old
 		// decorators exactly as they were
 		return Option(func(c *Config) Option {
-			c.Decorators = old
-			return Decorate(d...)
+			c.Sink.Decorators = old
+			return Encoding(d...)
 		})
 	}
 }
@@ -379,12 +406,12 @@ func CallTracking(t caller.Tracking) Option {
 	}
 }
 
-// ErrorSink returns a functional Option that establishes a consumer of errors generated by the
+// Errors returns a functional Option that establishes a consumer of errors generated by the
 // logging subsystem.
-func ErrorSink(es chan<- error) Option {
+func Errors(es chan<- error) Option {
 	return func(c *Config) Option {
-		old := c.ErrorSink
-		c.ErrorSink = es
-		return ErrorSink(old)
+		old := c.Sink.Errors
+		c.Sink.Errors = es
+		return Errors(old)
 	}
 }

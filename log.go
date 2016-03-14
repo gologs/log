@@ -25,43 +25,43 @@ import (
 func govetIgnoreFormat() string { return "" }
 
 // Debugf logs at levels.Debug
-func Debugf(msg string, args ...interface{}) { config.Default.Debugf(msg, args...) }
+func Debugf(msg string, args ...interface{}) { config.Logging.Debugf(msg, args...) }
 
 // Debug logs at levels.Debug
-func Debug(args ...interface{}) { config.Default.Debugf("", args...) }
+func Debug(args ...interface{}) { config.Logging.Debugf("", args...) }
 
 // Infof logs at levels.Info
-func Infof(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
+func Infof(msg string, args ...interface{}) { config.Logging.Infof(msg, args...) }
 
 // Info logs at levels.Info
-func Info(args ...interface{}) { config.Default.Infof("", args...) }
+func Info(args ...interface{}) { config.Logging.Infof("", args...) }
 
 // Warnf logs at levels.Warn
-func Warnf(msg string, args ...interface{}) { config.Default.Warnf(msg, args...) }
+func Warnf(msg string, args ...interface{}) { config.Logging.Warnf(msg, args...) }
 
 // Warn logs at levels.Warn
-func Warn(args ...interface{}) { config.Default.Warnf("", args...) }
+func Warn(args ...interface{}) { config.Logging.Warnf("", args...) }
 
 // Errorf logs at levels.Error
-func Errorf(msg string, args ...interface{}) { config.Default.Errorf(msg, args...) }
+func Errorf(msg string, args ...interface{}) { config.Logging.Errorf(msg, args...) }
 
 // Error logs at levels.Error
-func Error(args ...interface{}) { config.Default.Errorf(govetIgnoreFormat(), args...) }
+func Error(args ...interface{}) { config.Logging.Errorf(govetIgnoreFormat(), args...) }
 
 // Fatalf logs at levels.Fatal
-func Fatalf(msg string, args ...interface{}) { config.Default.Fatalf(msg, args...) }
+func Fatalf(msg string, args ...interface{}) { config.Logging.Fatalf(msg, args...) }
 
 // Fatal logs at levels.Fatal
-func Fatal(args ...interface{}) { config.Default.Fatalf(govetIgnoreFormat(), args...) }
+func Fatal(args ...interface{}) { config.Logging.Fatalf(govetIgnoreFormat(), args...) }
 
 // Panicf logs at levels.Panic
-func Panicf(msg string, args ...interface{}) { config.Default.Panicf(msg, args...) }
+func Panicf(msg string, args ...interface{}) { config.Logging.Panicf(msg, args...) }
 
 // Panic logs at levels.Panic
-func Panic(args ...interface{}) { config.Default.Panicf(govetIgnoreFormat(), args...) }
+func Panic(args ...interface{}) { config.Logging.Panicf(govetIgnoreFormat(), args...) }
 
 // Logf is an alias for Infof
-func Logf(msg string, args ...interface{}) { config.Default.Infof(msg, args...) }
+func Logf(msg string, args ...interface{}) { config.Logging.Infof(msg, args...) }
 
 // Log is an alias for Info
-func Log(args ...interface{}) { config.Default.Infof("", args...) }
+func Log(args ...interface{}) { config.Logging.Infof("", args...) }

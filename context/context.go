@@ -24,6 +24,9 @@ type Context interface {
 	Value(key interface{}) interface{}
 }
 
+// Getter is a function that returns some context; it should never return nil.
+type Getter func() Context
+
 type nullContext <-chan struct{}
 
 func (c nullContext) Done() <-chan struct{}           { return nil }

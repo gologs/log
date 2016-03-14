@@ -43,7 +43,7 @@ func Example_withCustomLogger() {
 	)
 
 	// swap out the default logger
-	config.Default, _ = config.DefaultConfig.With(config.Logger(flogger))
+	config.Logging, _ = config.DefaultConfig.With(config.Logger(flogger))
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Logf("and more 4 5 %d", 6)
 
@@ -77,11 +77,11 @@ func Example_withCustomStream() {
 	)
 
 	// swap out the default logger
-	config.Default, _ = config.DefaultConfig.With(
+	config.Logging, _ = config.DefaultConfig.With(
 		config.OnPanic(config.NoPanic()),
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
-		config.Decorate(ioutil.LevelPrefix()),
+		config.Encoding(ioutil.LevelPrefix()),
 	)
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Infof("and more 4 5 %d", 6)
@@ -157,12 +157,12 @@ func Example_withCustomMarshaler() {
 	)
 
 	// swap out the default logger
-	config.Default, _ = config.DefaultConfig.With(
+	config.Logging, _ = config.DefaultConfig.With(
 		config.OnPanic(config.NoPanic()),
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
 		config.Marshaler(marshaler),
-		config.Decorate(ioutil.LevelPrefix()),
+		config.Encoding(ioutil.LevelPrefix()),
 	)
 	log.Info("k%", "v", "majorVersion", 1, "module", "storage")
 

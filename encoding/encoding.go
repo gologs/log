@@ -54,6 +54,16 @@ func (dd Decorators) Decorate(op Marshaler) Marshaler {
 	return op
 }
 
+// Copy returns a deep-copy of the decorator slice; changes to the returned slice shall not
+// modify in any way the original decorators slice.
+func (dd Decorators) Copy() (clone Decorators) {
+	if dd != nil {
+		clone = make(Decorators, len(dd))
+		copy(clone, dd)
+	}
+	return
+}
+
 // Format returns a Marshaler that uses fmt Print and Printf to format
 // log writes to streams. An EOM signal is sent after every log message.
 func Format(d ...Decorator) Marshaler {
