@@ -56,7 +56,7 @@ func LeveledStreamer(
 	min levels.Level,
 	s io.Stream,
 	marshaler encoding.Marshaler,
-	t levels.Transform,
+	t levels.TransformOps,
 	callTracking caller.Tracking,
 	errorSink chan<- error,
 ) levels.Interface {
@@ -81,7 +81,7 @@ func LeveledLogger(
 	ctx context.Getter,
 	min levels.Level,
 	logs logger.Logger,
-	t levels.Transform,
+	t levels.TransformOps,
 	callTracking caller.Tracking,
 ) levels.Interface {
 	ctx = safeContext(ctx)
@@ -95,18 +95,18 @@ func leveledLogger(
 	ctx context.Getter,
 	min levels.Level,
 	logs logger.Logger,
-	t levels.Transform,
+	t levels.TransformOps,
 	callTracking caller.Tracking,
 ) levels.Interface {
 	var (
 		logAt = levels.IndexerFunc(func(level levels.Level) (logger.Logger, bool) {
 			return logger.WithContext(levels.DecorateContext(level), logs), true
 		})
-		g    lockGuard
-		tops = []levels.TransformOp{t.Apply, g.Apply}
+		g lockGuard
 	)
+	t = append(t, g.Apply)
 	if callTracking.Enabled {
-		tops = append(tops,
+		t = append(t,
 			// inject caller info into context (file/line); this is probably the best place to do it
 			// since we can predict the call-depth here and it will work for both Stream- and Logger-
 			// based approaches.
@@ -118,9 +118,9 @@ func leveledLogger(
 			}),
 		)
 	}
-	tops = append(tops, levels.MinTransform(min))
+	t = append(t, levels.MinTransform(min))
 	ctx = context.DecorateGetter(ctx, timestamp.NewDecorator(time.Now))
-	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, tops...))
+	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, t...))
 }
 
 func safeExit(fexit func(int)) func(int) {
@@ -196,6 +196,9 @@ type Config struct {
 
 	// Panic, when unset, will invoke golang's panic(string) upon calls to Panicf
 	Panic func(string)
+
+	// TransformOps allow clients to highly customize log processing based on levels
+	TransformOps levels.TransformOps
 }
 
 // NoPanic generates a noop panic func
@@ -260,14 +263,15 @@ func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
 			_ = o(&cfg)
 		}
 	}
-	t := levels.Transform{
+	// exit and panic wrappers are always applied after user ops
+	t := append(cfg.TransformOps, (&levels.Transform{
 		levels.Fatal: func(x logger.Logger) logger.Logger {
 			return exitLogger(x, cfg.Exit, cfg.ExitCode)
 		},
 		levels.Panic: func(x logger.Logger) logger.Logger {
 			return panicLogger(x, cfg.Panic)
 		},
-	}
+	}).Apply)
 	if cfg.Sink.Stream != nil {
 		return LeveledStreamer(
 			cfg.Context,
@@ -424,5 +428,20 @@ func Errors(es chan<- error) Option {
 		old := c.Sink.Errors
 		c.Sink.Errors = es
 		return Errors(old)
+	}
+}
+
+// TransformOps returns a functional Option that appends the given transform operators to those
+// already defined for the config.
+func TransformOps(ops ...levels.TransformOp) Option {
+	return func(c *Config) Option {
+		old := c.TransformOps.Copy()
+		c.TransformOps = append(c.TransformOps, ops...)
+
+		// undo Option should copy back the old ops exactly as they were before
+		return Option(func(c *Config) Option {
+			c.TransformOps = old
+			return TransformOps(ops...)
+		})
 	}
 }

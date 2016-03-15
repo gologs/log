@@ -72,6 +72,29 @@ func (t Transform) Apply(x Level, logs logger.Logger) (Level, logger.Logger) {
 // TransformOp typically returns the same Level with a modified Logger
 type TransformOp func(Level, logger.Logger) (Level, logger.Logger)
 
+// TransformOps aggregates TransformOp and allows such operators to be applied in bulk
+type TransformOps []TransformOp
+
+// Apply executes all the TransformOps against the input, first to last, and returns the result
+func (ops TransformOps) Apply(x Level, logs logger.Logger) (Level, logger.Logger) {
+	for _, t := range ops {
+		if t != nil {
+			x, logs = t(x, logs)
+		}
+	}
+	return x, logs
+}
+
+// Copy returns a clone of the ops slice that's independent of the original
+func (ops TransformOps) Copy() TransformOps {
+	if ops == nil {
+		return ops
+	}
+	clone := make(TransformOps, len(ops))
+	copy(clone, ops)
+	return clone
+}
+
 type key int
 
 const (
@@ -185,9 +208,7 @@ func NewIndexer(idx Indexer, levels []Level, chain ...TransformOp) Indexer {
 		if !ok {
 			continue
 		}
-		for _, c := range chain {
-			x, logs = c(x, logs)
-		}
+		x, logs = TransformOps(chain).Apply(x, logs)
 		m[x] = logs
 	}
 	return m
