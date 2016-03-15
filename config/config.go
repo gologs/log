@@ -330,17 +330,25 @@ func Sink(x StreamOrLogger) Option {
 }
 
 // Stream is a functional configuration Option that establishes the given io.Stream as the
-// destination for log messages. Setting a Stream Option resets all other fields in the
-// configuration's Sink.
+// destination for log messages. Note: if the sink has a non-nil value setting this Option
+// will override it.
 func Stream(stream io.Stream) Option {
-	return Sink(StreamOrLogger{Stream: stream})
+	return func(c *Config) Option {
+		old := c.Sink.Stream
+		c.Sink.Stream = stream
+		return Stream(old)
+	}
 }
 
 // Logger is a functional configuration Option that establishes the given logger.Logger as the
-// destination for log messages. Setting a Logging Option resets all other fields in the
-// configuration's Sink.
+// destination for log messages. Note: changing the logger has no effect if the sink's Stream
+// field is non-nil.
 func Logger(logs logger.Logger) Option {
-	return Sink(StreamOrLogger{Logger: logs})
+	return func(c *Config) Option {
+		old := c.Sink.Logger
+		c.Sink.Logger = logs
+		return Logger(old)
+	}
 }
 
 // OnExit is a functional configuration Option that defines the behavior of Exitf after a
