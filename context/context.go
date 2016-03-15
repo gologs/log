@@ -29,17 +29,17 @@ type Context interface {
 // Getter is a function that returns some context; it should never return nil.
 type Getter func() Context
 
-type nullContext <-chan struct{}
+type nullContext int
 
 func (c nullContext) Done() <-chan struct{}           { return nil }
 func (c nullContext) Value(_ interface{}) interface{} { return nil }
 
 // TODO exists to identify a place where better context is needed, but will be added later.
 // Easy to programatically check this way.
-func TODO() Context { return nullContext(nil) }
+func TODO() Context { return nullContext(0) }
 
 // Background is a blank Context whose Done chan never closes.
-func Background() Context { return nullContext(nil) }
+func Background() Context { return nullContext(0) }
 
 // stateful naively implements Context
 type stateful struct {
