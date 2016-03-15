@@ -42,11 +42,18 @@ func Null() Logger { return Func(func(_ context.Context, _ string, _ ...interfac
 
 // Multi returns a Logger that copies log events all those given as arguments
 func Multi(loggers ...Logger) Logger {
-	return Func(func(c context.Context, m string, a ...interface{}) {
-		for _, logs := range loggers {
-			logs.Logf(c, m, a...)
-		}
-	})
+	switch len(loggers) {
+	case 0:
+		return Null()
+	case 1:
+		return loggers[0]
+	default:
+		return Func(func(c context.Context, m string, a ...interface{}) {
+			for _, logs := range loggers {
+				logs.Logf(c, m, a...)
+			}
+		})
+	}
 }
 
 // IgnoreErrors is a convenience func to improve readability of func invocations
