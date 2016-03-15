@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package context is a strict subset of the interfaces declared in the canonical
+// golang.org/x/net/context package.
 package context
 
 // Context is a subset of the golang.org/x/net/context Context interface
