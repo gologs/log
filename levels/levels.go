@@ -36,9 +36,10 @@ type Interface interface {
 type Level int
 
 // Debug, Info, Warn, Error, Fatal, Panic constitute the complete set of supported
-// log level priorities supported by this package.
+// log level priorities supported by this package. Levels are bit flags which simplifies
+// the task of composing a log "mask": values can simply be OR'd together.
 const (
-	Debug Level = iota
+	Debug Level = 1 << iota
 	Info
 	Warn
 	Error
@@ -47,15 +48,6 @@ const (
 )
 
 var allLevels = []Level{Debug, Info, Warn, Error, Fatal, Panic}
-
-// ThresholdLogger returns the value of `logs` if `at` is the same or greater than
-// the `min` log level; otherwise returns a logger that discards all log messages.
-func ThresholdLogger(min, at Level, logs logger.Logger) logger.Logger {
-	if at >= min {
-		return logs
-	}
-	return logger.Null()
-}
 
 // Transform collects Decorators that are applied to `Logger`s for specific `Level`s.
 type Transform map[Level]logger.Decorator
@@ -172,9 +164,7 @@ func WithLoggers(ctxf context.Getter, index Indexer) Interface {
 
 // MinTransform generates a transform that only logs messages at or above the `min` Level.
 func MinTransform(min Level) TransformOp {
-	return func(x Level, logs logger.Logger) (Level, logger.Logger) {
-		return x, ThresholdLogger(min, x, logs)
-	}
+	return Accept(MatchAtOrAbove(min))
 }
 
 // Indexer functions map a Level to a Logger, or else return false
@@ -212,4 +202,50 @@ func NewIndexer(idx Indexer, levels []Level, chain ...TransformOp) Indexer {
 		m[x] = logs
 	}
 	return m
+}
+
+// Filter returns true if the given level is accepted
+type Filter func(Level) bool
+
+// MatchAny filters return true if the logical AND of a level with the given levelMask is non-zero
+func MatchAny(levelMask Level) Filter { return func(x Level) bool { return (levelMask & x) != 0 } }
+
+// MatchExact filters return true if a tested level is identical to the level provided to the matcher.
+func MatchExact(lvl Level) Filter { return func(x Level) bool { return x == lvl } }
+
+// MatchAtOrAbove filters return true if the tested level is the same or higher then that provided
+// to the matcher.
+func MatchAtOrAbove(lvl Level) Filter { return func(x Level) bool { return x >= lvl } }
+
+// Broadcast replicates log messages for the accepted levels to all the provided loggers.
+// If replace is false, a copy of the log message is also sent to the original input logger
+// of the returned TransformOp. If replace is true and len(log) == 0 then accepted logs
+// events will be dropped (sent to logger.Null()). Log messages that are not accepted by
+// the filter are simply passed through the original logger.
+func Broadcast(filter Filter, replace bool, log ...logger.Logger) TransformOp {
+	return func(x Level, ll logger.Logger) (Level, logger.Logger) {
+		if filter(x) {
+			if replace {
+				if len(log) == 0 {
+					return x, logger.Null()
+				}
+				return x, logger.Multi(log...)
+			}
+			if len(log) == 0 {
+				return x, ll // edge case, but there's no use wrapping here
+			}
+			return x, logger.Multi(append(log, ll)...)
+		}
+		return x, ll
+	}
+}
+
+// Accept drops log messages whose log level does not match the given filter.
+func Accept(filter Filter) TransformOp {
+	return func(x Level, ll logger.Logger) (Level, logger.Logger) {
+		if filter(x) {
+			return x, ll
+		}
+		return x, logger.Null()
+	}
 }
