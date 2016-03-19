@@ -197,14 +197,13 @@ func newCreditCard(account string) creditcard {
 }
 
 func Example_withTextStream() {
+	// illustates how to inject a logger.Decorator while making use of a custom stream
 	log, _ := config.DefaultConfig.With(
-		config.Logger(
-			redact.Default(
-				logger.WithStream(
-					io.TextStream(os.Stdout),
-					ioutil.LevelPrefix()(encoding.Format()),
-					logger.IgnoreErrors(),
-				))))
+		config.Stream(io.TextStream(os.Stdout)),
+		config.Encoding(ioutil.LevelPrefix()),
+		config.Builder(func(s io.Stream, m encoding.Marshaler, e chan<- error) logger.Logger {
+			return redact.Default(logger.WithStream(s, m, e))
+		}))
 
 	log.Infof("password=%v", &password{secret: "mysecret"})
 	log.Infof("cc=%v", newCreditCard("1234-5678-9012-3456"))

@@ -62,6 +62,9 @@ func IgnoreErrors() chan<- error {
 	return nil
 }
 
+// Builder generates a Logger
+type Builder func(io.Stream, encoding.Marshaler, chan<- error) Logger
+
 // WithStream generates a Logger that writes log events to the given
 // io.Stream using the given `op` marshaler. It is expected that a marshaler
 // will invoke EOM after processing each log event.

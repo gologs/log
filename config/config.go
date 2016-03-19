@@ -59,21 +59,29 @@ func LeveledStreamer(
 	t levels.TransformOps,
 	callTracking caller.Tracking,
 	errorSink chan<- error,
+	builder logger.Builder,
 ) levels.Interface {
-	ctx = safeContext(ctx)
-	if s == nil {
-		s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
-	}
-	if errorSink == nil {
-		errorSink = logger.IgnoreErrors()
-	}
+	return leveledLogger(
+		safeContext(ctx),
+		min,
+		safeBuilder(builder)(s, marshaler, errorSink),
+		t,
+		callTracking)
+}
 
-	logs := logger.WithStream(
-		s,
-		marshaler,
-		errorSink,
-	)
-	return leveledLogger(ctx, min, logs, t, callTracking)
+func safeBuilder(b logger.Builder) logger.Builder {
+	if b == nil {
+		b = logger.WithStream
+	}
+	return logger.Builder(func(s io.Stream, marshaler encoding.Marshaler, errorSink chan<- error) logger.Logger {
+		if s == nil {
+			s = io.SystemStream(2) // TODO(jdef) this value is probably garbage
+		}
+		if errorSink == nil {
+			errorSink = logger.IgnoreErrors()
+		}
+		return b(s, marshaler, errorSink)
+	})
 }
 
 // LeveledLogger generates a leveled logging interface for the given logger.Logger oriented configuration.
@@ -84,11 +92,10 @@ func LeveledLogger(
 	t levels.TransformOps,
 	callTracking caller.Tracking,
 ) levels.Interface {
-	ctx = safeContext(ctx)
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
-	return leveledLogger(ctx, min, logs, t, callTracking)
+	return leveledLogger(safeContext(ctx), min, logs, t, callTracking)
 }
 
 func leveledLogger(
@@ -169,6 +176,9 @@ type StreamOrLogger struct {
 	// (only applies when using Stream, not for Logger).
 	// Defaults to logger.IgnoreErrors().
 	Errors chan<- error
+
+	// Builder generates a Logger using the configured Stream, Marshaler, and Errors
+	Builder logger.Builder
 }
 
 // Config is a complete logging configuration. Fields may be tweaked manually, or by way
@@ -280,7 +290,8 @@ func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
 			cfg.Sink.Decorators.Decorate(safeMarshaler(cfg.Sink.Marshaler)),
 			t,
 			cfg.CallTracking,
-			cfg.Sink.Errors), rollback
+			cfg.Sink.Errors,
+			cfg.Sink.Builder), rollback
 	}
 	return LeveledLogger(
 		cfg.Context,
@@ -428,6 +439,16 @@ func Errors(es chan<- error) Option {
 		old := c.Sink.Errors
 		c.Sink.Errors = es
 		return Errors(old)
+	}
+}
+
+// Builder returns a functional Option that generates a logger Builder using the Stream-related
+// config settings.
+func Builder(b logger.Builder) Option {
+	return func(c *Config) Option {
+		old := c.Sink.Builder
+		c.Sink.Builder = b
+		return Builder(old)
 	}
 }
 
