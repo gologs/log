@@ -95,30 +95,6 @@ func WithContext(d context.Decorator, logger Logger) Logger {
 	})
 }
 
-/*
-type ignoreEOM struct {
-	stdio.Writer
-}
-
-func (i *ignoreEOM) EOM(_ error) {}
-
-// WriterLogger generates a Logger that logs to the given Writer.
-// All errors encountered while writing log messages are silently dropped.
-// See io.Operator for details.
-func WriterLogger(w stdio.Writer) Logger {
-	var (
-		ctx = io.NoContext() // TODO(jdef)
-		op  = io.Printf(ctx)
-		// TODO(jdef) should better handle EOM's by checking for LF
-	)
-	s := &ignoreEOM{w}
-	return Func(func(m string, a ...interface{}) {
-		// drop errors produced here
-		op(ctx, s, m, a...)
-	})
-}
-*/
-
 // SystemLogger generates a Logger that logs to the golang Print family
 // of functions.
 func SystemLogger() Logger {

@@ -26,9 +26,11 @@ import (
 	"github.com/gologs/log/caller"
 	"github.com/gologs/log/config"
 	"github.com/gologs/log/context"
+	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/io"
 	"github.com/gologs/log/io/ioutil"
 	"github.com/gologs/log/logger"
+	"github.com/gologs/log/logger/redact"
 )
 
 func Example_withCustomLogger() {
@@ -175,30 +177,39 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=168,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=170,func=Example_withCustomMarshaler}
+}
+
+type password struct {
+	redact.Simple
+	secret string
+}
+
+type creditcard struct {
+	redact.Interface
+	account string
+}
+
+func (p *password) String() string { return p.secret }
+
+func newCreditCard(account string) creditcard {
+	return creditcard{redact.Blackout(account), account}
 }
 
 func Example_withTextStream() {
-	stream := io.TextStream(os.Stdout)
+	log, _ := config.DefaultConfig.With(
+		config.Logger(
+			redact.Default(
+				logger.WithStream(
+					io.TextStream(os.Stdout),
+					ioutil.LevelPrefix()(encoding.Format()),
+					logger.IgnoreErrors(),
+				))))
 
-	// swap out the default logger
-	config.Logging, _ = config.DefaultConfig.With(
-		config.OnPanic(config.NoPanic()),
-		config.OnExit(config.NoExit()),
-		config.Stream(stream),
-		config.Encoding(ioutil.LevelPrefix()),
-	)
-	log.Debugf("I can count 1 2 %d", 3)
-	log.Infof("and more 4 5 %d", 6)
-	log.Warnf("and more 5 6 %d", 7)
-	log.Errorf("and more 6 7 %d", 8)
-	log.Fatalf("and more 7 8 %d", 9)
-	log.Panicf("and more 8 9 %d", 0)
+	log.Infof("password=%v", &password{secret: "mysecret"})
+	log.Infof("cc=%v", newCreditCard("1234-5678-9012-3456"))
 
 	// Output:
-	// Iand more 4 5 6
-	// Wand more 5 6 7
-	// Eand more 6 7 8
-	// Fand more 7 8 9
-	// Pand more 8 9 0
+	// Ipassword=xxREDACTEDxx
+	// Icc=xxxxxxxxxxxxxxxxxxx
 }
