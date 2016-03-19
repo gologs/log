@@ -162,8 +162,8 @@ func WithLoggers(ctxf context.Getter, index Indexer) Interface {
 	}
 }
 
-// MinTransform generates a transform that only logs messages at or above the `min` Level.
-func MinTransform(min Level) TransformOp {
+// MinThreshold generates a transform that only logs messages at or above the `min` Level.
+func MinThreshold(min Level) TransformOp {
 	return Accept(MatchAtOrAbove(min))
 }
 

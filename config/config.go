@@ -53,7 +53,7 @@ var _ = levels.TransformOp((&lockGuard{}).Apply)
 // LeveledStreamer generates a leveled logging interface for the given io.Stream oriented configuration.
 func LeveledStreamer(
 	ctx context.Getter,
-	min levels.Level,
+	threshold levels.TransformOp,
 	s io.Stream,
 	marshaler encoding.Marshaler,
 	t levels.TransformOps,
@@ -62,8 +62,8 @@ func LeveledStreamer(
 	builder logger.Builder,
 ) levels.Interface {
 	return leveledLogger(
-		safeContext(ctx),
-		min,
+		ctx,
+		threshold,
 		safeBuilder(builder)(s, marshaler, errorSink),
 		t,
 		callTracking)
@@ -87,7 +87,7 @@ func safeBuilder(b logger.Builder) logger.Builder {
 // LeveledLogger generates a leveled logging interface for the given logger.Logger oriented configuration.
 func LeveledLogger(
 	ctx context.Getter,
-	min levels.Level,
+	threshold levels.TransformOp,
 	logs logger.Logger,
 	t levels.TransformOps,
 	callTracking caller.Tracking,
@@ -95,39 +95,42 @@ func LeveledLogger(
 	if logs == nil {
 		logs = logger.SystemLogger()
 	}
-	return leveledLogger(safeContext(ctx), min, logs, t, callTracking)
+	return leveledLogger(ctx, threshold, logs, t, callTracking)
 }
 
 func leveledLogger(
 	ctx context.Getter,
-	min levels.Level,
+	threshold levels.TransformOp,
 	logs logger.Logger,
 	t levels.TransformOps,
 	callTracking caller.Tracking,
 ) levels.Interface {
-	var (
-		logAt = levels.IndexerFunc(func(level levels.Level) (logger.Logger, bool) {
-			return logger.WithContext(levels.DecorateContext(level), logs), true
-		})
-		g lockGuard
-	)
-	t = append(t, g.Apply)
+	logAt := levels.IndexerFunc(func(level levels.Level) (logger.Logger, bool) {
+		return logger.WithContext(levels.DecorateContext(level), logs), true
+	})
+	// NOTE: care has been taken to avoid locking the guard Mutex until absolutely necessary.
+	// For example, the log level threshold filter and caller injection both execute *before*
+	// the mutex is locked (pulling the call stack run the runtime is expensive).
+	t = append(t, (&lockGuard{}).Apply, safeThreshold(threshold))
 	if callTracking.Enabled {
 		t = append(t,
 			// inject caller info into context (file/line); this is probably the best place to do it
 			// since we can predict the call-depth here and it will work for both Stream- and Logger-
 			// based approaches.
-			// NOTE: care has been taken to avoid locking the guard Mutex until absolutely necessary.
-			// For example, the log level threshold filter and caller injection both execute *before*
-			// the mutex is locked (pulling the call stack run the runtime is expensive).
 			levels.TransformOp(func(x levels.Level, logs logger.Logger) (levels.Level, logger.Logger) {
 				return x, logger.WithContext(caller.WithContext(callTracking), logs)
 			}),
 		)
 	}
-	t = append(t, levels.MinTransform(min))
-	ctx = context.NewGetter(ctx, timestamp.NewDecorator(time.Now))
+	ctx = context.NewGetter(safeContext(ctx), timestamp.NewDecorator(time.Now))
 	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, t...))
+}
+
+func safeThreshold(t levels.TransformOp) levels.TransformOp {
+	if t == nil {
+		t = levels.MinThreshold(levels.Info)
+	}
+	return t
 }
 
 func safeExit(fexit func(int)) func(int) {
@@ -188,8 +191,9 @@ type Config struct {
 	// is invoked once for every log event and must be safe to execute concurrently.
 	Context context.Getter
 
-	// Level is the minimum log threshold; messages below this level will be discarded
-	Level levels.Level
+	// Threshold decides the minimum log threshold; messages below some level will be discarded.
+	// Threshold is evaluated for every log message and may be executed concurrently.
+	Threshold levels.TransformOp
 
 	// Sink is the destination for log events
 	Sink StreamOrLogger
@@ -207,7 +211,8 @@ type Config struct {
 	// Panic, when unset, will invoke golang's panic(string) upon calls to Panicf
 	Panic func(string)
 
-	// TransformOps allow clients to highly customize log processing based on levels
+	// TransformOps allow clients to highly customize log processing based on levels. These
+	// operators are never executed concurrently.
 	TransformOps levels.TransformOps
 }
 
@@ -232,8 +237,7 @@ var (
 // Porcelain returns a cleanroom, configuration.
 func Porcelain() Config {
 	return Config{
-		Level:    levels.Info, // Level defaults to levels.Info
-		ExitCode: 1,           // ExitCode defaults to 1
+		ExitCode: 1, // ExitCode defaults to 1
 		CallTracking: caller.Tracking{
 			Enabled: true,
 			Depth:   DefaultCallerDepth,
@@ -285,7 +289,7 @@ func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
 	if cfg.Sink.Stream != nil {
 		return LeveledStreamer(
 			cfg.Context,
-			cfg.Level,
+			cfg.Threshold,
 			cfg.Sink.Stream,
 			cfg.Sink.Decorators.Decorate(safeMarshaler(cfg.Sink.Marshaler)),
 			t,
@@ -295,7 +299,7 @@ func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
 	}
 	return LeveledLogger(
 		cfg.Context,
-		cfg.Level,
+		cfg.Threshold,
 		cfg.Sink.Logger,
 		t,
 		cfg.CallTracking), rollback
@@ -326,13 +330,19 @@ func Context(f context.Getter) Option {
 	}
 }
 
-// Level is a functional configuration Option that sets the minimum log level threshold.
-func Level(level levels.Level) Option {
+// Threshold is a functional configuration Option that sets the log threshold operator.
+func Threshold(t levels.TransformOp) Option {
 	return func(c *Config) Option {
-		old := c.Level
-		c.Level = level
-		return Level(old)
+		old := c.Threshold
+		c.Threshold = t
+		return Threshold(old)
 	}
+}
+
+// Level is a functional Option that sets a levels.MinThreshold to the given level. It is
+// a convenience option that overrides previous calls to Threshold.
+func Level(min levels.Level) Option {
+	return Threshold(levels.MinThreshold(min))
 }
 
 // Sink is a functional configuration Option that sets the destination for log messages.

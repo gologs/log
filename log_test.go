@@ -29,6 +29,7 @@ import (
 	"github.com/gologs/log/encoding"
 	"github.com/gologs/log/io"
 	"github.com/gologs/log/io/ioutil"
+	"github.com/gologs/log/levels"
 	"github.com/gologs/log/logger"
 	"github.com/gologs/log/logger/redact"
 )
@@ -177,7 +178,7 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=170,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=171,func=Example_withCustomMarshaler}
 }
 
 type password struct {
@@ -201,14 +202,15 @@ func Example_withTextStream() {
 	log, _ := config.DefaultConfig.With(
 		config.Stream(io.TextStream(os.Stdout)),
 		config.Encoding(ioutil.LevelPrefix()),
+		config.Level(levels.Debug),
 		config.Builder(func(s io.Stream, m encoding.Marshaler, e chan<- error) logger.Logger {
 			return redact.Default(logger.WithStream(s, m, e))
 		}))
 
-	log.Infof("password=%v", &password{secret: "mysecret"})
-	log.Infof("cc=%v", newCreditCard("1234-5678-9012-3456"))
+	log.Debugf("password=%v", &password{secret: "mysecret"})
+	log.Debugf("cc=%v", newCreditCard("1234-5678-9012-3456"))
 
 	// Output:
-	// Ipassword=xxREDACTEDxx
-	// Icc=xxxxxxxxxxxxxxxxxxx
+	// Dpassword=xxREDACTEDxx
+	// Dcc=xxxxxxxxxxxxxxxxxxx
 }
