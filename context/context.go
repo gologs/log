@@ -88,11 +88,14 @@ func NewDecorator(key, value interface{}) Decorator {
 	}
 }
 
-// DecorateGetter applies the given decorators to the supplied Getter such that the returned
+// NewGetter applies the given decorators to the supplied Getter such that the returned
 // Getter generates Context objects produced by the supplied Getter and then decorated by the
 // supplied decorators.
-func DecorateGetter(ctxf Getter, d ...Decorator) Getter {
-	return func() Context {
-		return Decorators(d).Decorate(ctxf())
+func NewGetter(ctxf Getter, d ...Decorator) Getter {
+	if len(d) > 0 {
+		return func() Context {
+			return Decorators(d).Decorate(ctxf())
+		}
 	}
+	return ctxf
 }

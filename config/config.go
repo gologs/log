@@ -126,7 +126,7 @@ func leveledLogger(
 		)
 	}
 	t = append(t, levels.MinTransform(min))
-	ctx = context.DecorateGetter(ctx, timestamp.NewDecorator(time.Now))
+	ctx = context.NewGetter(ctx, timestamp.NewDecorator(time.Now))
 	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, t...))
 }
 
@@ -472,7 +472,7 @@ func TransformOps(ops ...levels.TransformOp) Option {
 func AddContext(d ...context.Decorator) Option {
 	return func(c *Config) Option {
 		old := c.Context
-		c.Context = context.DecorateGetter(c.Context, d...)
+		c.Context = context.NewGetter(c.Context, d...)
 		return Context(old)
 	}
 }
