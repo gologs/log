@@ -207,6 +207,54 @@ func NewIndexer(idx Indexer, levels []Level, chain ...TransformOp) Indexer {
 // Filter returns true if the given level is accepted
 type Filter func(Level) bool
 
+// Or generates a logical OR of the receiving Filter and the other specified as a param.
+// If both the receiver and other are nil then the returned filter accepts all Levels.
+func (f Filter) Or(other Filter) Filter {
+	if f2, ok := reduceNilFilter(f, other); ok {
+		return f2
+	}
+	return func(lvl Level) bool {
+		return f(lvl) || other(lvl)
+	}
+}
+
+// And generates a logical AND of the receiving Filter and the other specified as a param.
+// If both the receiver and other are nil then the returned filter accepts all Levels.
+func (f Filter) And(other Filter) Filter {
+	if f2, ok := reduceNilFilter(f, other); ok {
+		return f2
+	}
+	return func(lvl Level) bool {
+		return f(lvl) && other(lvl)
+	}
+}
+
+// Xor generates a logical XOR (eXclusive-OR) of the receiving Filter and the other specified
+// as a param. If both the receiver and other are nil then the returned filter accepts all Levels.
+func (f Filter) Xor(other Filter) Filter {
+	if f2, ok := reduceNilFilter(f, other); ok {
+		return f2
+	}
+	return func(lvl Level) bool {
+		a, b := f(lvl), other(lvl)
+		return (a || b) && !(a && b)
+	}
+}
+
+func reduceNilFilter(a, b Filter) (Filter, bool) {
+	if a == nil {
+		if b == nil {
+			// both args are nil, accept everything
+			return func(_ Level) bool { return true }, true
+		}
+		return b, true
+	}
+	if b == nil {
+		return a, true
+	}
+	return nil, false
+}
+
 // MatchAny filters return true if the logical AND of a level with the given levelMask is non-zero
 func MatchAny(levelMask Level) Filter { return func(x Level) bool { return (levelMask & x) != 0 } }
 
