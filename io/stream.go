@@ -77,17 +77,47 @@ func SystemStream(calldepth int) Stream {
 	}
 }
 
-/*
 type byteTracker struct {
-	Stream
+	io.Writer
 	lastByte int8
 }
 
 func (bt *byteTracker) Write(buf []byte) (int, error) {
-	n, err := bt.Stream.Write(buf)
+	n, err := bt.Writer.Write(buf)
 	if n > 0 {
 		bt.lastByte = int8(buf[n-1])
 	}
 	return n, err
 }
-*/
+
+// WriterAdapter is a Stream implementation that wraps an io.Writer, passing through
+// all calls to Write and invokes EOMFunc for all calls to Stream.EOM.
+type WriterAdapter struct {
+	io.Writer
+	// EOMFunc (optional) is invoked upon calls to EOM.
+	EOMFunc func(error) error
+}
+
+// EOM implements Stream, invokes EOMFunc if it's not nil.
+func (wa *WriterAdapter) EOM(err error) error {
+	if wa.EOMFunc != nil {
+		err = wa.EOMFunc(err)
+	}
+	return err
+}
+
+// TextStream passes all Write calls through to the underlying Writer and upon EOM
+// appends a newline if one was not included in the message.
+func TextStream(w io.Writer) Stream {
+	bt := &byteTracker{Writer: w}
+	lf := []byte("\n")
+	return &WriterAdapter{
+		Writer: bt,
+		EOMFunc: func(err error) error {
+			if err == nil && bt.lastByte != int8(lf[0]) {
+				_, err = w.Write(lf)
+			}
+			return err
+		},
+	}
+}

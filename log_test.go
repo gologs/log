@@ -18,6 +18,7 @@ package log_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -174,5 +175,30 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=167,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=168,func=Example_withCustomMarshaler}
+}
+
+func Example_withTextStream() {
+	stream := io.TextStream(os.Stdout)
+
+	// swap out the default logger
+	config.Logging, _ = config.DefaultConfig.With(
+		config.OnPanic(config.NoPanic()),
+		config.OnExit(config.NoExit()),
+		config.Stream(stream),
+		config.Encoding(ioutil.LevelPrefix()),
+	)
+	log.Debugf("I can count 1 2 %d", 3)
+	log.Infof("and more 4 5 %d", 6)
+	log.Warnf("and more 5 6 %d", 7)
+	log.Errorf("and more 6 7 %d", 8)
+	log.Fatalf("and more 7 8 %d", 9)
+	log.Panicf("and more 8 9 %d", 0)
+
+	// Output:
+	// Iand more 4 5 6
+	// Wand more 5 6 7
+	// Eand more 6 7 8
+	// Fand more 7 8 9
+	// Pand more 8 9 0
 }
