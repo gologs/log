@@ -17,7 +17,6 @@ limitations under the License.
 package encoding_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/gologs/log/context"
@@ -92,26 +91,14 @@ func TestDecorators(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	var (
-		d           = Prefix(nil)
-		n           = NullMarshaler()
-		err         = d(n)(nil, nil, "")
-		expectedErr = errors.New("someError")
+		d   = Prefix(nil)
+		n   = NullMarshaler()
+		err = d(n)(nil, nil, "")
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	d = Prefix(func(_ context.Context) ([]byte, error) {
-		return nil, expectedErr
-	})
-	err = d(n)(nil, nil, "")
-	if err != expectedErr {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	d = Prefix(func(_ context.Context) ([]byte, error) {
-		return []byte("foo"), expectedErr
-	})
 	capture := ""
 	b := &io.BufferedStream{
 		EOMFunc: func(buf io.Buffer, e error) error {
@@ -122,16 +109,8 @@ func TestPrefix(t *testing.T) {
 			return nil
 		},
 	}
-	err = Format(d)(nil, b, "")
-	if err != expectedErr {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if capture != "" {
-		t.Fatalf("unexpected capture: %q", capture)
-	}
-
-	d = Prefix(func(_ context.Context) ([]byte, error) {
-		return []byte("bar"), nil
+	d = Prefix(func(_ context.Context) Iterable {
+		return NewIterable([]byte("bar"))
 	})
 	err = Format(d)(nil, b, "foo")
 	if err != nil {

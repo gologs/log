@@ -79,18 +79,50 @@ func Format(d ...Decorator) Marshaler {
 		}))
 }
 
+// Iterable generates a byte slice; returns a nil Iterable when finished.
+type Iterable func() ([]byte, Iterable)
+
+// NewIterable generates an Iterable that iterates over the given byte slices.
+func NewIterable(b ...[]byte) Iterable {
+	if len(b) == 0 {
+		return nil
+	}
+	return func() ([]byte, Iterable) {
+		return b[0], NewIterable(b[1:]...)
+	}
+}
+
+// Singular generates an Iterable for a single buffer; more efficient if you'll only
+// ever have one buffer to return from a decorator.
+func Singular(b []byte) Iterable {
+	if b == nil || len(b) == 0 {
+		return nil
+	}
+	return func() ([]byte, Iterable) {
+		return b, nil
+	}
+}
+
 // Prefix returns a stream Decorator that outputs a prefix blob for each stream
 // operation.
-func Prefix(f func(context.Context) ([]byte, error)) Decorator {
-	if f == nil {
+func Prefix(prefixf func(context.Context) Iterable) Decorator {
+	if prefixf == nil {
 		return NoDecorator()
 	}
 	return func(op Marshaler) Marshaler {
 		return func(c context.Context, s io.Stream, m string, a ...interface{}) (err error) {
-			var b []byte
-			if b, err = f(c); err == nil && len(b) > 0 {
-				_, err = s.Write(b)
+			var (
+				it = prefixf(c)
+				b  []byte
+			)
+			for it != nil && err == nil {
+				b, it = it()
+				if len(b) > 0 {
+					_, err = s.Write(b)
+				}
 			}
+			// TODO(jdef) it's not right to short circuit the marshaler here. we should be forwarding
+			// the error all the way down through the ops to the final marshaler.
 			if err == nil {
 				err = op(c, s, m, a...)
 			}

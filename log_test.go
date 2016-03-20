@@ -211,7 +211,7 @@ func Example_withTextStream() {
 	// additional prefix decorators
 	log := config.DefaultConfig.With(
 		config.Stream(io.NewBuffered(io.TextStream(os.Stdout))),
-		config.Encoding(ioutil.String(" "), ioutil.GlogTimestamp(), ioutil.Level()),
+		config.Encoding(ioutil.GlogHeader()),
 		config.Level(levels.Debug),
 		config.Builder(func(s io.Stream, m encoding.Marshaler, e chan<- error) logger.Logger {
 			return redact.Default(logger.WithStream(s, m, e))

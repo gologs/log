@@ -23,6 +23,25 @@ import (
 	"github.com/gologs/log/levels"
 )
 
+// GlogHeader generates a stream encoding.Prefix decorator that prepends a standard glog
+// header to every log message. Requires call tracking to be enabled.
+func GlogHeader() encoding.Decorator {
+	//TODO(jdef) obviously this isn't done yet. The point is not to emulate everything in glog or
+	// any other system. The goal is to ensure that we can (somewhat) efficiently chain prefixes
+	// when neeed using Iterable.
+	var (
+		buf = make(buffer, 20)
+		sp  = []byte(" ")
+	)
+	return encoding.Prefix(func(c context.Context) encoding.Iterable {
+		lvl := level(c)
+		glogTimestamp(c, buf)
+		return encoding.NewIterable(
+			lvl, buf, sp,
+		)
+	})
+}
+
 var levelCodes = map[levels.Level][]byte{
 	levels.Debug: []byte("D"),
 	levels.Info:  []byte("I"),
@@ -35,23 +54,30 @@ var levelCodes = map[levels.Level][]byte{
 // Level generates a stream encoding.Prefix decorator that prepends a level code
 // label to every log message.
 func Level() encoding.Decorator {
-	return encoding.Prefix(func(c context.Context) (b []byte, err error) {
-		if x, ok := levels.FromContext(c); ok {
-			if code, ok := levelCodes[x]; ok {
-				b = code
-			}
-		}
-		return
+	return encoding.Prefix(func(c context.Context) encoding.Iterable {
+		return encoding.Singular(level(c))
 	})
+}
+
+var unknownLevel = []byte("?")
+
+func level(c context.Context) (result []byte) {
+	result = unknownLevel
+	if x, ok := levels.FromContext(c); ok {
+		if code, ok := levelCodes[x]; ok {
+			result = code
+		}
+	}
+	return
 }
 
 // Timestamp generates a stream encoding.Prefix decorator that prepends a timestamp
 // to every log message. The format of the timestamp is determined by the `layout` parameter.
 // See time.Time.Format.
 func Timestamp(layout string) encoding.Decorator {
-	return encoding.Prefix(func(c context.Context) (b []byte, err error) {
+	return encoding.Prefix(func(c context.Context) (it encoding.Iterable) {
 		if ts, ok := timestamp.FromContext(c); ok {
-			b = []byte(ts.Format(layout))
+			it = encoding.Singular([]byte(ts.Format(layout)))
 		}
 		return
 	})
@@ -61,7 +87,7 @@ func Timestamp(layout string) encoding.Decorator {
 // log message.
 func String(s string) encoding.Decorator {
 	b := []byte(s)
-	return encoding.Prefix(func(c context.Context) ([]byte, error) { return b, nil })
+	return encoding.Prefix(func(c context.Context) encoding.Iterable { return encoding.Singular(b) })
 }
 
 // GlogTimestamp generates a stream encoding.Prefix decorator that prepends a timestamp
@@ -70,29 +96,36 @@ func String(s string) encoding.Decorator {
 func GlogTimestamp() encoding.Decorator {
 	// the formatting of this implemented was copy/pasted/hacked from the glog project
 	buf := make(buffer, 20)
-	buf[4] = ' '
-	buf[7] = ':'
-	buf[10] = ':'
-	buf[13] = '.'
-	return encoding.Prefix(func(c context.Context) ([]byte, error) {
-		if ts, ok := timestamp.FromContext(c); ok {
-			// Avoid Fprintf, for speed. The format is so simple that we can do it quickly by hand.
-			// It's worth about 3X. Fprintf is hard.
-			var (
-				_, month, day        = ts.Date()
-				hour, minute, second = ts.Clock()
-			)
-			// mmdd hh:mm:ss.uuuuuu
-			buf.twoDigits(0, int(month))
-			buf.twoDigits(2, day)
-			buf.twoDigits(5, hour)
-			buf.twoDigits(8, minute)
-			buf.twoDigits(11, second)
-			buf.nDigits(6, 14, ts.Nanosecond()/1000, '0')
-			return buf, nil
+	return encoding.Prefix(func(c context.Context) (it encoding.Iterable) {
+		if glogTimestamp(c, buf) {
+			it = encoding.Singular(buf)
 		}
-		return nil, nil
+		return
 	})
+}
+
+func glogTimestamp(c context.Context, buf buffer) bool {
+	ts, ok := timestamp.FromContext(c)
+	if ok {
+		// Avoid Fprintf, for speed. The format is so simple that we can do it quickly by hand.
+		// It's worth about 3X. Fprintf is hard.
+		var (
+			_, month, day        = ts.Date()
+			hour, minute, second = ts.Clock()
+		)
+		// mmdd hh:mm:ss.uuuuuu
+		buf.twoDigits(0, int(month))
+		buf.twoDigits(2, day)
+		buf[4] = ' '
+		buf.twoDigits(5, hour)
+		buf[7] = ':'
+		buf.twoDigits(8, minute)
+		buf[10] = ':'
+		buf.twoDigits(11, second)
+		buf[13] = '.'
+		buf.nDigits(6, 14, ts.Nanosecond()/1000, '0')
+	}
+	return ok
 }
 
 // buffer and related helper funcs were copied the glog project
