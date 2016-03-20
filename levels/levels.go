@@ -24,11 +24,17 @@ import (
 // Interface is the canonical leveled logging interface.
 type Interface interface {
 	Debugf(string, ...interface{}) // Debugf signifies a Debug level message
+	Debug(...interface{})          // Debug signifies a Debug level message, without a message format
 	Infof(string, ...interface{})  // Infof signifies an Info level message
+	Info(...interface{})           // Info signifies an Info level message, without a message format
 	Warnf(string, ...interface{})  // Warnf signifies an Warn level message
+	Warn(...interface{})           // Warn signifies an Warn level message, without a message format
 	Errorf(string, ...interface{}) // Errorf signifies an Error level message
+	Error(...interface{})          // Error signifies an Error level message, without a message format
 	Fatalf(string, ...interface{}) // Fatalf logs and then, typically, invokes an exit func
+	Fatal(...interface{})          // Fatal logs without a message format and then, typically, invokes an exit func
 	Panicf(string, ...interface{}) // Panicf logs and then, typically, invokes a panic func
+	Panic(...interface{})          // Panic logs without a message format and then, typically, invokes a panic func
 }
 
 // Level represents a logging priority, or threshold, usually to indicate a level
@@ -112,6 +118,10 @@ func FromContext(ctx context.Context) (Level, bool) {
 	return x, ok
 }
 
+// this is rubbish, but it silences "go vet"s complaints about lack of format specifiers,
+// and it's a dumb enough func that the golang toolchain can optimize this away
+func govetIgnoreFormat() string { return "" }
+
 type loggers struct {
 	ctxf   context.Getter
 	debugf logger.Logger
@@ -125,20 +135,38 @@ type loggers struct {
 // Debugf implements Interface
 func (f *loggers) Debugf(m string, a ...interface{}) { f.debugf.Logf(f.ctxf(), m, a...) }
 
+// Debug implements Interface
+func (f *loggers) Debug(a ...interface{}) { f.debugf.Logf(f.ctxf(), govetIgnoreFormat(), a...) }
+
 // Infof implements Interface
 func (f *loggers) Infof(m string, a ...interface{}) { f.infof.Logf(f.ctxf(), m, a...) }
+
+// Info implements Interface
+func (f *loggers) Info(a ...interface{}) { f.infof.Logf(f.ctxf(), govetIgnoreFormat(), a...) }
 
 // Warnf implements Interface
 func (f *loggers) Warnf(m string, a ...interface{}) { f.warnf.Logf(f.ctxf(), m, a...) }
 
+// Warn implements Interface
+func (f *loggers) Warn(a ...interface{}) { f.warnf.Logf(f.ctxf(), govetIgnoreFormat(), a...) }
+
 // Errorf implements Interface
 func (f *loggers) Errorf(m string, a ...interface{}) { f.errorf.Logf(f.ctxf(), m, a...) }
+
+// Error implements Interface
+func (f *loggers) Error(a ...interface{}) { f.errorf.Logf(f.ctxf(), govetIgnoreFormat(), a...) }
 
 // Fatalf implements Interface
 func (f *loggers) Fatalf(m string, a ...interface{}) { f.fatalf.Logf(f.ctxf(), m, a...) }
 
+// Fatal implements Interface
+func (f *loggers) Fatal(a ...interface{}) { f.fatalf.Logf(f.ctxf(), govetIgnoreFormat(), a...) }
+
 // Panicf implements Interface
 func (f *loggers) Panicf(m string, a ...interface{}) { f.panicf.Logf(f.ctxf(), m, a...) }
+
+// Panic implements Interface
+func (f *loggers) Panic(a ...interface{}) { f.panicf.Logf(f.ctxf(), govetIgnoreFormat(), a...) }
 
 // WithLoggers is a factory function, it generates an instance of Interface using the Logger
 // instances found in the provided Indexer. If a requisite Logger is not found by the Indexer
