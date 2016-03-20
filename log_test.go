@@ -47,7 +47,7 @@ func Example_withCustomLogger() {
 	)
 
 	// swap out the default logger
-	config.Logging, _ = config.DefaultConfig.With(config.Logger(flogger))
+	config.Logging = config.DefaultConfig.With(config.Logger(flogger))
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Logf("and more 4 5 %d", 6)
 
@@ -81,7 +81,7 @@ func Example_withCustomStream() {
 	)
 
 	// swap out the default logger
-	config.Logging, _ = config.DefaultConfig.With(
+	config.Logging = config.DefaultConfig.With(
 		config.OnPanic(config.NoPanic()),
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
@@ -161,7 +161,7 @@ func Example_withCustomMarshaler() {
 	)
 
 	// swap out the default logger
-	config.Logging, _ = config.DefaultConfig.With(
+	config.Logging = config.DefaultConfig.With(
 		config.OnPanic(config.NoPanic()),
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
@@ -199,7 +199,7 @@ func newCreditCard(account string) creditcard {
 
 func Example_withTextStream() {
 	// illustates how to inject a logger.Decorator while making use of a custom stream
-	log, _ := config.DefaultConfig.With(
+	log := config.DefaultConfig.With(
 		config.Stream(io.TextStream(os.Stdout)),
 		config.Encoding(ioutil.LevelPrefix()),
 		config.Level(levels.Debug),

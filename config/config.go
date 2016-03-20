@@ -231,7 +231,7 @@ var (
 
 	// Logging is a logging instance constructed with default configuration:
 	// it logs everything "info" and higher ("warn", "error", ...) to logger.SystemLogger()
-	Logging = func() (i levels.Interface) { i, _ = DefaultConfig.With(NoOption()); return }()
+	Logging = DefaultConfig.With(NoOption())
 )
 
 // Porcelain returns a cleanroom, configuration.
@@ -270,7 +270,14 @@ func safeContext(f context.Getter) context.Getter {
 }
 
 // With generates a logging interface using the receiving configuration with the given Options applied.
-func (cfg Config) With(opt ...Option) (levels.Interface, Option) {
+func (cfg Config) With(opt ...Option) (i levels.Interface) {
+	i, _ = cfg.WithRollback(opt...)
+	return
+}
+
+// WithRollback generates a logging interface using the receiving configuration with the given Options applied.
+// It returns a functional Option that rolls back the changes made here.
+func (cfg Config) WithRollback(opt ...Option) (levels.Interface, Option) {
 	rollback := Set(cfg)
 	for _, o := range opt {
 		if o != nil {
