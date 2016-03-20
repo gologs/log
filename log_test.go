@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gologs/log"
 	"github.com/gologs/log/caller"
@@ -85,7 +86,7 @@ func Example_withCustomStream() {
 		config.OnPanic(config.NoPanic()),
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
-		config.Encoding(ioutil.LevelPrefix()),
+		config.Encoding(ioutil.Level()),
 	)
 	log.Debugf("I can count 1 2 %d", 3)
 	log.Infof("and more 4 5 %d", 6)
@@ -166,7 +167,7 @@ func Example_withCustomMarshaler() {
 		config.OnExit(config.NoExit()),
 		config.Stream(stream),
 		config.Marshaler(marshaler),
-		config.Encoding(ioutil.LevelPrefix()),
+		config.Encoding(ioutil.Level()),
 	)
 	log.Info("k%", "v", "majorVersion", 1, "module", "storage")
 
@@ -178,7 +179,7 @@ func Example_withCustomMarshaler() {
 
 	// Output:
 	// 1
-	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=171,func=Example_withCustomMarshaler}
+	// I{k%=v,majorVersion=1,module=storage,file=log_test.go,line=172,func=Example_withCustomMarshaler}
 }
 
 type password struct {
@@ -198,19 +199,29 @@ func newCreditCard(account string) creditcard {
 }
 
 func Example_withTextStream() {
-	// illustates how to inject a logger.Decorator while making use of a custom stream
+	var (
+		t         time.Time
+		tick      = func() { t = t.Add(time.Second) }
+		fakeClock = func() time.Time { return t }
+	)
+	config.Clock = fakeClock
+	defer func() { config.Clock = time.Now }() // restore the default clock when we're done
+
+	// illustates how to inject a logger.Decorator while making use of a custom stream with
+	// additional prefix decorators
 	log := config.DefaultConfig.With(
-		config.Stream(io.TextStream(os.Stdout)),
-		config.Encoding(ioutil.LevelPrefix()),
+		config.Stream(io.NewBuffered(io.TextStream(os.Stdout))),
+		config.Encoding(ioutil.String(" "), ioutil.GlogTimestamp(), ioutil.Level()),
 		config.Level(levels.Debug),
 		config.Builder(func(s io.Stream, m encoding.Marshaler, e chan<- error) logger.Logger {
 			return redact.Default(logger.WithStream(s, m, e))
 		}))
 
 	log.Debugf("password=%v", &password{secret: "mysecret"})
+	tick()
 	log.Debugf("cc=%v", newCreditCard("1234-5678-9012-3456"))
 
 	// Output:
-	// Dpassword=xxREDACTEDxx
-	// Dcc=xxxxxxxxxxxxxxxxxxx
+	// D0101 00:00:00.000000 password=xxREDACTEDxx
+	// D0101 00:00:01.000000 cc=xxxxxxxxxxxxxxxxxxx
 }

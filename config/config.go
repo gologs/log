@@ -99,6 +99,9 @@ func LeveledLogger(
 	return leveledLogger(ctx, threshold, logs, t, callTracking)
 }
 
+// Clock tells the time
+var Clock = time.Now
+
 func leveledLogger(
 	ctx context.Getter,
 	threshold levels.TransformOp,
@@ -127,7 +130,7 @@ func leveledLogger(
 			}),
 		)
 	}
-	ctx = context.NewGetter(safeContext(ctx), timestamp.NewDecorator(time.Now))
+	ctx = context.NewGetter(safeContext(ctx), timestamp.NewDecorator(Clock))
 	return levels.WithLoggers(ctx, levels.NewIndexer(logAt, nil, t...))
 }
 

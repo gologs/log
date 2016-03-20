@@ -65,6 +65,19 @@ func (bs *BufferedStream) EOM(err error) error {
 	return err
 }
 
+// NewBuffered wraps the provided stream such that all generated log content is locally
+// buffered before being flushed to the underlying stream upon EOM.
+func NewBuffered(s Stream) Stream {
+	return &BufferedStream{
+		EOMFunc: func(buf Buffer, err error) error {
+			if err == nil {
+				_, err = buf.WriteTo(s)
+			}
+			return s.EOM(err)
+		},
+	}
+}
+
 // SystemStream returns a buffered Stream that logs output via the standard "log" package.
 func SystemStream(calldepth int) Stream {
 	return &BufferedStream{
