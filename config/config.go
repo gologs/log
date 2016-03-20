@@ -47,8 +47,9 @@ func (g *lockGuard) Apply(x levels.Level, logs logger.Logger) (levels.Level, log
 	})
 }
 
-// Apply is a levels.TransformOp
-var _ = levels.TransformOp((&lockGuard{}).Apply)
+// LockGuard provides the default mutex used to guard log operations. All levels.Interface objects
+// produced by this module reference this guard instance.
+var LockGuard = levels.TransformOp((&lockGuard{}).Apply)
 
 // LeveledStreamer generates a leveled logging interface for the given io.Stream oriented configuration.
 func LeveledStreamer(
@@ -111,7 +112,7 @@ func leveledLogger(
 	// NOTE: care has been taken to avoid locking the guard Mutex until absolutely necessary.
 	// For example, the log level threshold filter and caller injection both execute *before*
 	// the mutex is locked (pulling the call stack run the runtime is expensive).
-	t = append(t, (&lockGuard{}).Apply, safeThreshold(threshold))
+	t = append(t, LockGuard, safeThreshold(threshold))
 	if callTracking.Enabled {
 		t = append(t,
 			// inject caller info into context (file/line); this is probably the best place to do it
