@@ -109,9 +109,13 @@ func leveledLogger(
 	logAt := levels.IndexerFunc(func(level levels.Level) (logger.Logger, bool) {
 		return logger.WithContext(levels.DecorateContext(level), logs), true
 	})
+
 	// NOTE: care has been taken to avoid locking the guard Mutex until absolutely necessary.
 	// For example, the log level threshold filter and caller injection both execute *before*
 	// the mutex is locked (pulling the call stack run the runtime is expensive).
+
+	// TODO(jdef) do we really want to lock around user-specified transform ops? Users should
+	// probably be responsible for their own thread-safety.
 	t = append(t, LockGuard, safeThreshold(threshold))
 	if callTracking.Enabled {
 		t = append(t,
